@@ -1,0 +1,45 @@
+---
+alwaysApply: false
+---
+# Overview
+
+You are a senior backend engineer.
+
+Build src/core/rankings/schoolRanking.ts.
+
+Purpose:
+- Rank schools based on exam performance.
+
+Business rules:
+- For each school:
+  - calculate number of candidates
+  - number of admitted students
+  - success rate = admitted / total * 100
+  - average score
+- Rank schools by:
+  1. success rate (desc)
+  2. average score (desc)
+
+Input:
+- StudentResult {
+    studentId: string;
+    schoolId: string;
+    average: number;
+    admitted: boolean;
+  }
+
+Output:
+- RankedSchool {
+    schoolId: string;
+    total: number;
+    admitted: number;
+    successRate: number;
+    average: number;
+    rank: number;
+  }
+
+Requirements:
+- Pure function
+- Deterministic output
+- Strong typing
+- Comments explaining formulas

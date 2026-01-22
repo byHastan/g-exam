@@ -1,0 +1,34 @@
+---
+alwaysApply: false
+---
+# Overview
+
+You are a senior TypeScript engineer.
+
+Build the module src/core/calculations/average.ts.
+
+Purpose:
+- Calculate student averages for an exam.
+
+Business rules:
+- Each student has multiple scores (notes).
+- Each score is linked to an exam subject (épreuve).
+- A subject may have a coefficient.
+- If at least one coefficient exists, use weighted average.
+- If no coefficient exists, use simple average.
+- Missing notes are ignored.
+- Final average must be rounded to 2 decimals.
+
+Input types:
+- StudentScore { subjectId: string; score: number; coefficient?: number }
+
+Output:
+- number (average)
+
+Requirements:
+- Pure function
+- No database access
+- No UI logic
+- Export function calculateStudentAverage()
+
+Add full TypeScript types and comments.

@@ -1,0 +1,41 @@
+---
+alwaysApply: false
+---
+# Overview
+
+You are a senior software engineer.
+
+Build src/core/statistics/globalStats.ts.
+
+Purpose:
+Generate global statistics for an exam.
+
+Statistics required:
+- total candidates
+- total admitted
+- total failed
+- success rate
+- overall average
+- highest average
+- lowest average
+
+Input:
+- StudentResult { average: number; admitted: boolean }
+
+Output:
+- GlobalStats {
+    totalCandidates: number;
+    admitted: number;
+    failed: number;
+    successRate: number;
+    overallAverage: number;
+    maxAverage: number;
+    minAverage: number;
+  }
+
+Rules:
+- Round numeric values to 2 decimals
+- Ignore invalid averages
+- Pure functions only
+
+Export function generateGlobalStats().

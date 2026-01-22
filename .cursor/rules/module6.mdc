@@ -1,0 +1,38 @@
+---
+alwaysApply: false
+---
+# Overview
+
+You are a senior software engineer.
+
+Build src/core/room-dispatch/alphabeticalDispatch.ts.
+
+Purpose:
+Automatically assign students to exam rooms.
+
+Business rules:
+- Default sorting: alphabetical by last name then first name.
+- User defines:
+  - number of rooms
+  - maximum capacity per room
+- Students are assigned sequentially.
+- No room exceeds capacity.
+- Extra students go to next room.
+
+Input:
+- Student { id: string; lastName: string; firstName: string }
+- roomCount: number
+- roomCapacity: number
+
+Output:
+- RoomAssignment {
+    roomNumber: number;
+    students: Student[]
+  }
+
+Export function dispatchAlphabetically().
+
+Constraints:
+- Pure function
+- Deterministic output
+- No side effects

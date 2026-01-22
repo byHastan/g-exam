@@ -1,0 +1,31 @@
+---
+alwaysApply: false
+---
+# Overview
+
+You are a senior TypeScript engineer.
+
+Build src/core/statistics/subjectStats.ts.
+
+Purpose:
+Generate statistics per exam subject.
+
+Input:
+- SubjectScore {
+    subjectId: string;
+    score: number;
+  }
+
+Output per subject:
+- average score
+- min score
+- max score
+- count
+
+Export function generateSubjectStats().
+
+Rules:
+- Group by subjectId
+- Round results to 2 decimals
+- Ignore null values
+- Pure logic only

@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+# Overview
+
+You are a senior software engineer.
+
+Build this module following these strict rules:
+
+- Use TypeScript only
+- Write clean, readable, production-ready code
+- No UI logic
+- No React hooks
+- No side effects
+- Pure functions only
+- Strong typing
+- Export all public functions
+- Add clear comments explaining business rules
+- Do not invent features outside the specification
+- Follow the existing project architecture
+- All logic must be testable and deterministic
+
+If something is missing, make reasonable assumptions and document them in comments.
+

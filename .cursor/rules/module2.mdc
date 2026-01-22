@@ -1,0 +1,32 @@
+---
+alwaysApply: false
+---
+# Overview
+
+You are a senior software engineer.
+
+Build the module src/core/rankings/studentRanking.ts.
+
+Purpose:
+- Rank students based on their final average.
+
+Business rules:
+- Sort by average descending.
+- Handle ex-aequo (same average = same rank).
+- Next rank must be skipped accordingly.
+Example:
+- 1st: 15.20
+- 1st: 15.20
+- 3rd: 14.80
+
+Input:
+- StudentResult { studentId: string; average: number }
+
+Output:
+- RankedStudent { studentId: string; average: number; rank: number }
+
+Requirements:
+- Deterministic ranking
+- Pure function
+- Export rankStudents()
+- Well commented logic
