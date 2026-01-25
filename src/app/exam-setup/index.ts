@@ -1,0 +1,1 @@
+export { ExamSetupPage } from './page';
