@@ -24,20 +24,27 @@ import { Users, FileText, CheckCircle, XCircle, Percent, Building2 } from 'lucid
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function DashboardPage() {
-  const { examName, passingGrade } = useExamStore();
+  const { examName, passingGrade, maxGrade } = useExamStore();
   const { students } = useStudentsStore();
   const { subjects } = useSubjectsStore();
   const { schools } = useSchoolsStore();
   const { calculateAverage } = useScoresStore();
 
-  // Préparer les sujets pour le calcul
+  // Préparer les sujets pour le calcul (avec maxScore pour la normalisation)
   const subjectsForCalc = useMemo(
     () =>
       subjects.map((s) => ({
         id: s.id,
         coefficient: s.coefficient,
+        maxScore: s.maxScore,
       })),
     [subjects]
+  );
+
+  // Options pour le calcul de moyenne (barème global)
+  const averageOptions = useMemo(
+    () => ({ targetScale: maxGrade }),
+    [maxGrade]
   );
 
   // Calculer les statistiques
@@ -47,7 +54,7 @@ export function DashboardPage() {
     let withAverage = 0;
 
     students.forEach((student) => {
-      const average = calculateAverage(student.id, subjectsForCalc);
+      const average = calculateAverage(student.id, subjectsForCalc, averageOptions);
       if (average !== null) {
         withAverage++;
         if (average >= passingGrade) {
@@ -70,7 +77,7 @@ export function DashboardPage() {
       withAverageCount: withAverage,
       successRate,
     };
-  }, [students, subjects, schools, calculateAverage, subjectsForCalc, passingGrade]);
+  }, [students, subjects, schools, calculateAverage, subjectsForCalc, averageOptions, passingGrade]);
 
   const totalResults = stats.passedCount + stats.failedCount;
 

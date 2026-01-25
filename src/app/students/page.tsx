@@ -4,14 +4,39 @@
  * Permet de:
  * - Lister les élèves
  * - Ajouter manuellement
+ * - Importer via fichier Excel
  * - Modifier/Supprimer
  * - Rechercher et filtrer
  */
 
-import { useState } from 'react';
-import { PageContainer } from '@/components/layout';
 import { EmptyState } from '@/components/common';
+import { PageContainer } from '@/components/layout';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -29,37 +54,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { Users, Plus, Upload, Pencil, Trash2, Search } from 'lucide-react';
-import { useStudentsStore, useSchoolsStore, useScoresStore, useSubjectsStore } from '@/stores';
+import { downloadStudentTemplate, parseExcelFile, validateExcelFile, type ExcelStudentRow } from '@/lib/excel';
 import type { Student } from '@/stores';
+import { useSchoolsStore, useScoresStore, useStudentsStore, useSubjectsStore } from '@/stores';
+import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Pencil, Plus, Search, Trash2, Upload, Users } from 'lucide-react';
+import { useRef, useState } from 'react';
 
 export function StudentsPage() {
-  const { students, addStudent, updateStudent, deleteStudent } = useStudentsStore();
+  const { students, addStudent, addManyStudents, updateStudent, deleteStudent } = useStudentsStore();
   const { schools } = useSchoolsStore();
   const { getScoresByStudent } = useScoresStore();
   const { subjects } = useSubjectsStore();
@@ -71,6 +73,16 @@ export function StudentsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  // États pour l'import Excel
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importSchoolId, setImportSchoolId] = useState<string>('');
+  const [, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<ExcelStudentRow[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSuccess, setImportSuccess] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Formulaire
   const [formFirstName, setFormFirstName] = useState('');
@@ -157,12 +169,100 @@ export function StudentsPage() {
     }
   };
 
-  const handleImportExcel = () => {
-    // TODO: Implémenter l'import Excel
-    console.log('Import Excel à implémenter');
+  // ============================================
+  // IMPORT EXCEL HANDLERS
+  // ============================================
+
+  const handleOpenImportDialog = () => {
+    setImportSchoolId('');
+    setImportFile(null);
+    setImportPreview([]);
+    setImportErrors([]);
+    setImportSuccess(null);
+    setIsImportDialogOpen(true);
+  };
+
+  const handleCloseImportDialog = () => {
+    setIsImportDialogOpen(false);
+    setImportFile(null);
+    setImportPreview([]);
+    setImportErrors([]);
+    setImportSuccess(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Valider le fichier
+    const validation = validateExcelFile(file);
+    if (!validation.valid) {
+      setImportErrors([validation.error || 'Fichier invalide']);
+      setImportFile(null);
+      setImportPreview([]);
+      return;
+    }
+
+    setImportFile(file);
+    setImportErrors([]);
+    setImportSuccess(null);
+
+    // Parser le fichier pour la prévisualisation
+    const result = await parseExcelFile(file);
+    
+    if (result.success) {
+      setImportPreview(result.students);
+      setImportErrors(result.errors);
+    } else {
+      setImportPreview([]);
+      setImportErrors(result.errors);
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importSchoolId || importPreview.length === 0) return;
+
+    setIsImporting(true);
+    
+    try {
+      // Convertir les données Excel en format attendu par le store
+      const studentsToAdd = importPreview.map(student => ({
+        firstName: student.firstName,
+        lastName: student.lastName,
+        schoolId: parseInt(importSchoolId),
+        gender: student.gender,
+        birthDate: student.birthDate,
+      }));
+
+      // Ajouter les élèves
+      const count = addManyStudents(studentsToAdd);
+      setImportSuccess(count);
+      setImportPreview([]);
+      setImportFile(null);
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      setImportErrors([`Erreur lors de l'import: ${error instanceof Error ? error.message : 'Erreur inconnue'}`]);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadStudentTemplate();
+    } catch (error) {
+      console.error('Erreur lors du téléchargement du template:', error);
+    }
   };
 
   const isFormValid = formFirstName.trim() && formLastName.trim() && formSchoolId;
+  const isImportValid = importSchoolId && importPreview.length > 0 && !isImporting;
 
   return (
     <PageContainer
@@ -180,7 +280,7 @@ export function StudentsPage() {
               <Plus className="h-4 w-4 mr-2" />
               Ajouter manuellement
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleImportExcel}>
+            <DropdownMenuItem onClick={handleOpenImportDialog}>
               <Upload className="h-4 w-4 mr-2" />
               Importer un fichier Excel
             </DropdownMenuItem>
@@ -473,6 +573,178 @@ export function StudentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog Import Excel */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Importer des élèves depuis Excel
+            </DialogTitle>
+            <DialogDescription>
+              Sélectionnez l'établissement puis importez votre fichier Excel contenant la liste des élèves.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Message de succès */}
+            {importSuccess !== null && (
+              <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="font-medium text-green-800">Import réussi !</p>
+                  <p className="text-sm text-green-700">
+                    {importSuccess} élève(s) ont été ajoutés avec succès.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Étape 1: Sélection de l'établissement */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                  1
+                </span>
+                Sélectionner l'établissement *
+              </Label>
+              <Select value={importSchoolId} onValueChange={setImportSchoolId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir l'établissement des élèves" />
+                </SelectTrigger>
+                <SelectContent>
+                  {schools.map((school) => (
+                    <SelectItem key={school.id} value={String(school.id)}>
+                      {school.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Tous les élèves importés seront assignés à cet établissement.
+              </p>
+            </div>
+
+            {/* Étape 2: Import du fichier */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                  2
+                </span>
+                Importer le fichier Excel
+              </Label>
+              
+              <div className="flex items-center gap-2">
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileSelect}
+                  disabled={!importSchoolId}
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadTemplate}
+                  className="whitespace-nowrap"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Template
+                </Button>
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                Formats acceptés: .xlsx, .xls, .csv — Le fichier doit contenir les colonnes "Nom" et "Prénom" (obligatoires), et optionnellement "Sexe" et "Date de naissance".
+              </p>
+            </div>
+
+            {/* Erreurs */}
+            {importErrors.length > 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-medium text-red-800">
+                      {importPreview.length > 0 ? 'Avertissements' : 'Erreurs'}
+                    </p>
+                    <ul className="list-disc list-inside text-sm text-red-700 space-y-0.5">
+                      {importErrors.slice(0, 5).map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                      {importErrors.length > 5 && (
+                        <li>... et {importErrors.length - 5} autre(s) erreur(s)</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Prévisualisation */}
+            {importPreview.length > 0 && (
+              <div className="space-y-2">
+                <Label>Aperçu ({importPreview.length} élève(s) à importer)</Label>
+                <div className="rounded-md border max-h-48 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nom</TableHead>
+                        <TableHead>Prénom</TableHead>
+                        <TableHead>Sexe</TableHead>
+                        <TableHead>Date de naissance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importPreview.slice(0, 10).map((student, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{student.lastName}</TableCell>
+                          <TableCell>{student.firstName}</TableCell>
+                          <TableCell>{student.gender || '—'}</TableCell>
+                          <TableCell>
+                            {student.birthDate
+                              ? student.birthDate.toLocaleDateString('fr-FR')
+                              : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {importPreview.length > 10 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            ... et {importPreview.length - 10} autre(s) élève(s)
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseImportDialog}>
+              {importSuccess !== null ? 'Fermer' : 'Annuler'}
+            </Button>
+            {importSuccess === null && (
+              <Button
+                onClick={handleImportConfirm}
+                disabled={!isImportValid}
+              >
+                {isImporting ? (
+                  <>Importation...</>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Importer {importPreview.length > 0 ? `(${importPreview.length})` : ''}
+                  </>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

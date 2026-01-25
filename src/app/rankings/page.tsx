@@ -35,24 +35,31 @@ export function RankingsPage() {
   const { students } = useStudentsStore();
   const { subjects } = useSubjectsStore();
   const { schools } = useSchoolsStore();
-  const { passingGrade } = useExamStore();
+  const { passingGrade, maxGrade } = useExamStore();
   const { calculateAverage } = useScoresStore();
 
-  // Préparer les sujets pour le calcul
+  // Préparer les sujets pour le calcul (avec maxScore pour la normalisation)
   const subjectsForCalc = useMemo(
     () =>
       subjects.map((s) => ({
         id: s.id,
         coefficient: s.coefficient,
+        maxScore: s.maxScore,
       })),
     [subjects]
+  );
+
+  // Options pour le calcul de moyenne (barème global)
+  const averageOptions = useMemo(
+    () => ({ targetScale: maxGrade }),
+    [maxGrade]
   );
 
   // Calculer les résultats des élèves
   const studentResults = useMemo(() => {
     return students
       .map((student) => {
-        const average = calculateAverage(student.id, subjectsForCalc);
+        const average = calculateAverage(student.id, subjectsForCalc, averageOptions);
         return {
           studentId: String(student.id),
           schoolId: String(student.schoolId),
@@ -62,7 +69,7 @@ export function RankingsPage() {
         };
       })
       .filter((r) => r.average > 0); // Seulement les élèves avec des notes
-  }, [students, calculateAverage, subjectsForCalc, passingGrade]);
+  }, [students, calculateAverage, subjectsForCalc, averageOptions, passingGrade]);
 
   // Classement des élèves
   const rankedStudents = useMemo(() => {

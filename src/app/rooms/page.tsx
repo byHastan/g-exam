@@ -39,8 +39,34 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DoorOpen, Settings2, Users, RefreshCw } from 'lucide-react';
-import { useStudentsStore, useSchoolsStore } from '@/stores';
+import {
+  DoorOpen,
+  Settings2,
+  Users,
+  RefreshCw,
+  Download,
+  Printer,
+  FileSpreadsheet,
+  FileText,
+  ChevronDown,
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useStudentsStore, useSchoolsStore, useExamStore } from '@/stores';
+import {
+  exportRoomToExcel,
+  exportAllRoomsToExcel,
+  exportRoomToPdf,
+  exportAllRoomsToPdf,
+  printRoom,
+  printAllRooms,
+  type ExportRoom,
+  type ExamInfo,
+} from '@/lib/export';
 import {
   dispatchAlphabetically,
   calculateRequiredRooms,
@@ -50,6 +76,7 @@ import type { RoomAssignment } from '@/core/room-dispatch/alphabeticalDispatch';
 export function RoomsPage() {
   const { students } = useStudentsStore();
   const { schools } = useSchoolsStore();
+  const { examName, examYear, passingGrade, maxGrade } = useExamStore();
 
   // États
   const [roomCount, setRoomCount] = useState(5);
@@ -133,6 +160,63 @@ export function RoomsPage() {
 
   // Filtrer les salles avec des élèves
   const filledRooms = roomAssignments.filter((r) => r.students.length > 0);
+
+  // Préparer les données pour l'export
+  const examInfo: ExamInfo = useMemo(
+    () => ({
+      name: examName || 'Examen',
+      year: examYear || new Date().getFullYear(),
+      passingGrade: passingGrade || 10,
+      maxGrade: maxGrade || 20,
+    }),
+    [examName, examYear, passingGrade, maxGrade]
+  );
+
+  // Convertir les données de salle au format export
+  const getExportRoom = (room: RoomAssignment): ExportRoom => ({
+    roomNumber: room.roomNumber,
+    capacity: roomCapacity,
+    students: room.students.map((student) => {
+      const fullStudent = students.find((s) => String(s.id) === student.id);
+      return {
+        id: student.id,
+        lastName: student.lastName,
+        firstName: student.firstName,
+        schoolName: fullStudent ? getSchoolName(fullStudent.schoolId) : undefined,
+      };
+    }),
+  });
+
+  const exportRooms: ExportRoom[] = useMemo(
+    () => filledRooms.map(getExportRoom),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filledRooms, students, schools, roomCapacity]
+  );
+
+  // Handlers d'export
+  const handleExportRoomExcel = async (room: RoomAssignment) => {
+    await exportRoomToExcel(examInfo, getExportRoom(room));
+  };
+
+  const handleExportAllExcel = async () => {
+    await exportAllRoomsToExcel(examInfo, exportRooms);
+  };
+
+  const handleExportRoomPdf = async (room: RoomAssignment) => {
+    await exportRoomToPdf(examInfo, getExportRoom(room));
+  };
+
+  const handleExportAllPdf = async () => {
+    await exportAllRoomsToPdf(examInfo, exportRooms);
+  };
+
+  const handlePrintRoom = async (room: RoomAssignment) => {
+    await printRoom(examInfo, getExportRoom(room));
+  };
+
+  const handlePrintAll = async () => {
+    await printAllRooms(examInfo, exportRooms);
+  };
 
   return (
     <PageContainer
@@ -224,34 +308,76 @@ export function RoomsPage() {
           {/* Résultat de la répartition */}
           {roomAssignments.length > 0 ? (
             <div className="space-y-4">
-              {/* Stats de la répartition */}
-              {roomStats && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">
-                      Résumé de la répartition
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-4">
-                      <Badge variant="secondary" className="text-sm py-1 px-3">
-                        {roomStats.totalAssigned} élèves assignés
-                      </Badge>
-                      <Badge variant="secondary" className="text-sm py-1 px-3">
-                        {roomStats.filledRooms} salles utilisées
-                      </Badge>
-                      <Badge variant="secondary" className="text-sm py-1 px-3">
-                        ~{roomStats.avgPerRoom} élèves/salle en moyenne
-                      </Badge>
-                      {roomStats.emptyRooms > 0 && (
-                        <Badge variant="outline" className="text-sm py-1 px-3">
-                          {roomStats.emptyRooms} salle(s) vide(s)
-                        </Badge>
+              {/* Stats + Actions */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-base">
+                        Résumé de la répartition
+                      </CardTitle>
+                      {roomStats && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {roomStats.totalAssigned} élèves
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {roomStats.filledRooms} salles
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            ~{roomStats.avgPerRoom}/salle
+                          </Badge>
+                          {roomStats.emptyRooms > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {roomStats.emptyRooms} vide(s)
+                            </Badge>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                    
+                    {/* Barre d'actions */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Exporter tout */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm">
+                            <Download className="h-4 w-4 mr-2" />
+                            Exporter
+                            <ChevronDown className="h-4 w-4 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={handleExportAllExcel}>
+                            <FileSpreadsheet className="h-4 w-4 mr-2" />
+                            Toutes les salles (Excel)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={handleExportAllPdf}>
+                            <FileText className="h-4 w-4 mr-2" />
+                            Toutes les salles (PDF)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      {/* Imprimer tout */}
+                      <Button size="sm" variant="outline" onClick={handlePrintAll}>
+                        <Printer className="h-4 w-4 mr-2" />
+                        Imprimer tout
+                      </Button>
+
+                      {/* Effacer */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={handleClearAssignments}
+                      >
+                        Effacer
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
 
               {/* Onglets par salle */}
               <Tabs defaultValue={`room-1`} className="w-full">
@@ -278,15 +404,46 @@ export function RoomsPage() {
                     className="mt-4"
                   >
                     <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <DoorOpen className="h-5 w-5" />
-                          Salle {room.roomNumber}
-                        </CardTitle>
-                        <CardDescription>
-                          {room.students.length} élève(s) sur {roomCapacity}{' '}
-                          places
-                        </CardDescription>
+                      <CardHeader className="pb-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <DoorOpen className="h-5 w-5" />
+                              Salle {room.roomNumber}
+                            </CardTitle>
+                            <CardDescription>
+                              {room.students.length} élève(s) sur {roomCapacity}{' '}
+                              places
+                            </CardDescription>
+                          </div>
+                          {/* Actions par salle */}
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleExportRoomExcel(room)}
+                              title="Exporter en Excel"
+                            >
+                              <FileSpreadsheet className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleExportRoomPdf(room)}
+                              title="Exporter en PDF"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handlePrintRoom(room)}
+                              title="Imprimer"
+                            >
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <div className="rounded-md border">
@@ -327,13 +484,6 @@ export function RoomsPage() {
                   </TabsContent>
                 ))}
               </Tabs>
-
-              {/* Bouton pour effacer */}
-              <div className="flex justify-end">
-                <Button variant="outline" onClick={handleClearAssignments}>
-                  Effacer la répartition
-                </Button>
-              </div>
             </div>
           ) : (
             <Card>

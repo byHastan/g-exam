@@ -15,7 +15,8 @@ interface ExamState {
   examName: string | null;
   examYear: number | null;
   status: ExamStatus;
-  passingGrade: number; // Seuil de réussite (ex: 10/20)
+  passingGrade: number; // Seuil de réussite (ex: 10)
+  maxGrade: number; // Barème/note maximale (ex: 20, 100, 10)
 
   // Compteurs pour le dashboard
   candidatesCount: number;
@@ -24,9 +25,10 @@ interface ExamState {
   failedCount: number;
 
   // Actions
-  setExam: (id: number, name: string, year: number, passingGrade?: number) => void;
+  setExam: (id: number, name: string, year: number, passingGrade?: number, maxGrade?: number) => void;
   setStatus: (status: ExamStatus) => void;
   setPassingGrade: (grade: number) => void;
+  setMaxGrade: (grade: number) => void;
   updateCounts: (counts: {
     candidates?: number;
     subjects?: number;
@@ -45,19 +47,21 @@ export const useExamStore = create<ExamState>()(
       examYear: null,
       status: 'draft',
       passingGrade: 10,
+      maxGrade: 20,
 
       candidatesCount: 0,
       subjectsCount: 0,
       passedCount: 0,
       failedCount: 0,
 
-      setExam: (id: number, name: string, year: number, passingGrade?: number) => {
+      setExam: (id: number, name: string, year: number, passingGrade?: number, maxGrade?: number) => {
         set({
           examId: id,
           examName: name,
           examYear: year,
           status: 'draft',
           passingGrade: passingGrade ?? 10,
+          maxGrade: maxGrade ?? 20,
         });
       },
 
@@ -67,6 +71,10 @@ export const useExamStore = create<ExamState>()(
 
       setPassingGrade: (grade: number) => {
         set({ passingGrade: grade });
+      },
+
+      setMaxGrade: (grade: number) => {
+        set({ maxGrade: grade });
       },
 
       updateCounts: (counts) => {
@@ -85,6 +93,7 @@ export const useExamStore = create<ExamState>()(
           examYear: null,
           status: 'draft',
           passingGrade: 10,
+          maxGrade: 20,
           candidatesCount: 0,
           subjectsCount: 0,
           passedCount: 0,

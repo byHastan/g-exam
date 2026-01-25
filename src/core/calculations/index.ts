@@ -4,4 +4,4 @@
  */
 
 export { calculateStudentAverage } from './average';
-export type { StudentScore } from './average';
+export type { StudentScore, AverageOptions } from './average';

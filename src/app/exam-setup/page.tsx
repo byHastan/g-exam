@@ -58,6 +58,7 @@ export function ExamSetupPage() {
     examYear,
     status,
     passingGrade,
+    maxGrade,
     setExam,
     setStatus,
     clearExam,
@@ -78,12 +79,14 @@ export function ExamSetupPage() {
   // Formulaire
   const [formName, setFormName] = useState('');
   const [formYear, setFormYear] = useState(new Date().getFullYear().toString());
+  const [formMaxGrade, setFormMaxGrade] = useState('20');
   const [formPassingGrade, setFormPassingGrade] = useState('10');
 
   // Handlers
   const handleOpenCreate = () => {
     setFormName('');
     setFormYear(new Date().getFullYear().toString());
+    setFormMaxGrade('20');
     setFormPassingGrade('10');
     setIsCreateDialogOpen(true);
   };
@@ -91,6 +94,7 @@ export function ExamSetupPage() {
   const handleOpenEdit = () => {
     setFormName(examName || '');
     setFormYear(examYear?.toString() || new Date().getFullYear().toString());
+    setFormMaxGrade(maxGrade.toString());
     setFormPassingGrade(passingGrade.toString());
     setIsEditDialogOpen(true);
   };
@@ -98,8 +102,9 @@ export function ExamSetupPage() {
   const handleCreate = () => {
     if (formName.trim() && formYear) {
       const year = parseInt(formYear);
-      const grade = parseFloat(formPassingGrade) || 10;
-      setExam(examIdCounter++, formName.trim(), year, grade);
+      const max = parseFloat(formMaxGrade) || 20;
+      const grade = parseFloat(formPassingGrade) || (max / 2);
+      setExam(examIdCounter++, formName.trim(), year, grade, max);
       setExamYear(year);
       setIsCreateDialogOpen(false);
     }
@@ -108,8 +113,9 @@ export function ExamSetupPage() {
   const handleEdit = () => {
     if (formName.trim() && formYear && examId) {
       const year = parseInt(formYear);
-      const grade = parseFloat(formPassingGrade) || 10;
-      setExam(examId, formName.trim(), year, grade);
+      const max = parseFloat(formMaxGrade) || 20;
+      const grade = parseFloat(formPassingGrade) || (max / 2);
+      setExam(examId, formName.trim(), year, grade, max);
       setExamYear(year);
       setIsEditDialogOpen(false);
     }
@@ -192,7 +198,7 @@ export function ExamSetupPage() {
                 <CardDescription>Moyenne minimale pour être admis</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{passingGrade}/20</p>
+                <p className="text-2xl font-bold">{passingGrade}/{maxGrade}</p>
               </CardContent>
             </Card>
           </div>
@@ -314,7 +320,7 @@ export function ExamSetupPage() {
                 placeholder="Ex: CEPE, BEPC, BAC..."
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="year">Année *</Label>
                 <Input
@@ -327,12 +333,25 @@ export function ExamSetupPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="passingGrade">Seuil de réussite (/20)</Label>
+                <Label htmlFor="maxGrade">Barème</Label>
+                <Input
+                  id="maxGrade"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value={formMaxGrade}
+                  onChange={(e) => setFormMaxGrade(e.target.value)}
+                  placeholder="Ex: 20, 100..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="passingGrade">Seuil de réussite</Label>
                 <Input
                   id="passingGrade"
                   type="number"
                   min="0"
-                  max="20"
+                  max={formMaxGrade}
                   step="0.5"
                   value={formPassingGrade}
                   onChange={(e) => setFormPassingGrade(e.target.value)}
@@ -372,7 +391,7 @@ export function ExamSetupPage() {
                 onChange={(e) => setFormName(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-year">Année *</Label>
                 <Input
@@ -385,12 +404,25 @@ export function ExamSetupPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-passingGrade">Seuil de réussite (/20)</Label>
+                <Label htmlFor="edit-maxGrade">Barème</Label>
+                <Input
+                  id="edit-maxGrade"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value={formMaxGrade}
+                  onChange={(e) => setFormMaxGrade(e.target.value)}
+                  placeholder="Ex: 20, 100..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-passingGrade">Seuil de réussite</Label>
                 <Input
                   id="edit-passingGrade"
                   type="number"
                   min="0"
-                  max="20"
+                  max={formMaxGrade}
                   step="0.5"
                   value={formPassingGrade}
                   onChange={(e) => setFormPassingGrade(e.target.value)}

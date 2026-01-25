@@ -10,7 +10,6 @@
 import { useState, useMemo } from 'react';
 import { PageContainer } from '@/components/layout';
 import { EmptyState } from '@/components/common';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -41,7 +40,7 @@ export function ScoresPage() {
   const { students } = useStudentsStore();
   const { subjects } = useSubjectsStore();
   const { schools } = useSchoolsStore();
-  const { passingGrade } = useExamStore();
+  const { passingGrade, maxGrade } = useExamStore();
   const { getScore, upsertScore, calculateAverage } = useScoresStore();
 
   // États locaux
@@ -72,14 +71,21 @@ export function ScoresPage() {
     });
   }, [students, searchQuery, filterSchool]);
 
-  // Préparer les sujets pour le calcul
+  // Préparer les sujets pour le calcul (avec maxScore pour la normalisation)
   const subjectsForCalc = useMemo(
     () =>
       subjects.map((s) => ({
         id: s.id,
         coefficient: s.coefficient,
+        maxScore: s.maxScore,
       })),
     [subjects]
+  );
+
+  // Options pour le calcul de moyenne (barème global)
+  const averageOptions = useMemo(
+    () => ({ targetScale: maxGrade }),
+    [maxGrade]
   );
 
   // Handlers
@@ -113,7 +119,7 @@ export function ScoresPage() {
 
   // Obtenir la moyenne d'un élève
   const getStudentAverage = (studentId: number) => {
-    return calculateAverage(studentId, subjectsForCalc);
+    return calculateAverage(studentId, subjectsForCalc, averageOptions);
   };
 
   // Vérifier si l'élève est admis
@@ -158,11 +164,11 @@ export function ScoresPage() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-green-100 border border-green-300" />
-              Admis (≥ {passingGrade})
+              Admis (≥ {passingGrade}/{maxGrade})
             </span>
             <span className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-red-100 border border-red-300" />
-              Ajourné ({'<'} {passingGrade})
+              Ajourné ({'<'} {passingGrade}/{maxGrade})
             </span>
             <span className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-gray-100 border border-gray-300" />

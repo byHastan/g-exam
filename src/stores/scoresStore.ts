@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { calculateStudentAverage } from '@/core/calculations/average';
-import type { StudentScore } from '@/core/calculations/average';
+import type { StudentScore, AverageOptions } from '@/core/calculations/average';
 
 // ============================================
 // TYPES
@@ -46,11 +46,13 @@ interface ScoresState {
   // Calculs
   calculateAverage: (
     studentId: number,
-    subjects: Array<{ id: number; coefficient: number | null }>
+    subjects: Array<{ id: number; coefficient: number | null; maxScore?: number }>,
+    options?: AverageOptions
   ) => number | null;
   getStudentsWithAverages: (
     studentIds: number[],
-    subjects: Array<{ id: number; coefficient: number | null }>
+    subjects: Array<{ id: number; coefficient: number | null; maxScore?: number }>,
+    options?: AverageOptions
   ) => StudentWithAverage[];
 
   // Utilitaires
@@ -164,7 +166,8 @@ export const useScoresStore = create<ScoresState>()(
 
       calculateAverage: (
         studentId: number,
-        subjects: Array<{ id: number; coefficient: number | null }>
+        subjects: Array<{ id: number; coefficient: number | null; maxScore?: number }>,
+        options?: AverageOptions
       ) => {
         const { scores } = get();
         const studentScores = scores.filter((s) => s.studentId === studentId);
@@ -174,21 +177,24 @@ export const useScoresStore = create<ScoresState>()(
         }
 
         // Convertir en format attendu par calculateStudentAverage
+        // Inclure le maxScore de chaque épreuve pour la normalisation
         const scoresForCalc: StudentScore[] = studentScores.map((score) => {
           const subject = subjects.find((s) => s.id === score.subjectId);
           return {
             subjectId: String(score.subjectId),
             score: score.value,
             coefficient: subject?.coefficient ?? undefined,
+            maxScore: subject?.maxScore ?? undefined,
           };
         });
 
-        return calculateStudentAverage(scoresForCalc);
+        return calculateStudentAverage(scoresForCalc, options);
       },
 
       getStudentsWithAverages: (
         studentIds: number[],
-        subjects: Array<{ id: number; coefficient: number | null }>
+        subjects: Array<{ id: number; coefficient: number | null; maxScore?: number }>,
+        options?: AverageOptions
       ) => {
         const { scores, calculateAverage } = get();
 
@@ -196,7 +202,7 @@ export const useScoresStore = create<ScoresState>()(
           const studentScores = scores.filter((s) => s.studentId === studentId);
           return {
             studentId,
-            average: calculateAverage(studentId, subjects),
+            average: calculateAverage(studentId, subjects, options),
             scoresCount: studentScores.length,
           };
         });
