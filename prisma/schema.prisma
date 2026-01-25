@@ -9,3 +9,136 @@ generator client {
 datasource db {
   provider = "sqlite"
 }
+
+// ============================================
+// MODÈLES DE DONNÉES - EXAM MANAGER
+// ============================================
+
+/// Examen - Représente une session d'examen
+model Exam {
+  id           Int       @id @default(autoincrement())
+  name         String
+  year         Int
+  passingGrade Float     @default(10) // Seuil de réussite (ex: 10/20)
+  isLocked     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  students Student[]
+  subjects Subject[]
+  rooms    Room[]
+}
+
+/// Établissement scolaire
+model School {
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String? // Code établissement (optionnel)
+  createdAt DateTime @default(now())
+
+  // Relations
+  students Student[]
+}
+
+/// Élève / Candidat
+model Student {
+  id              Int       @id @default(autoincrement())
+  candidateNumber String    @unique // Numéro candidat (auto-généré)
+  firstName       String
+  lastName        String
+  gender          String? // Optionnel (M/F)
+  birthDate       DateTime? // Optionnel
+  createdAt       DateTime  @default(now())
+
+  // Foreign keys
+  examId   Int
+  schoolId Int
+
+  // Relations
+  exam           Exam            @relation(fields: [examId], references: [id], onDelete: Cascade)
+  school         School          @relation(fields: [schoolId], references: [id])
+  scores         Score[]
+  roomAssignment RoomAssignment?
+
+  // Index pour recherche rapide
+  @@index([examId])
+  @@index([schoolId])
+  @@index([lastName, firstName])
+}
+
+/// Épreuve / Matière
+model Subject {
+  id          Int      @id @default(autoincrement())
+  name        String
+  coefficient Float? // Optionnel (null = pas de coefficient)
+  maxScore    Float    @default(20) // Note maximale
+  createdAt   DateTime @default(now())
+
+  // Foreign keys
+  examId Int
+
+  // Relations
+  exam   Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  scores Score[]
+
+  // Index
+  @@index([examId])
+}
+
+/// Note d'un élève pour une épreuve
+model Score {
+  id        Int      @id @default(autoincrement())
+  value     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign keys
+  studentId Int
+  subjectId Int
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  // Contrainte unique : un élève ne peut avoir qu'une note par épreuve
+  @@unique([studentId, subjectId])
+  @@index([studentId])
+  @@index([subjectId])
+}
+
+/// Salle d'examen
+model Room {
+  id        Int      @id @default(autoincrement())
+  name      String
+  capacity  Int
+  createdAt DateTime @default(now())
+
+  // Foreign keys
+  examId Int
+
+  // Relations
+  exam        Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  assignments RoomAssignment[]
+
+  // Index
+  @@index([examId])
+}
+
+/// Assignation d'un élève à une salle
+model RoomAssignment {
+  id         Int      @id @default(autoincrement())
+  seatNumber Int? // Numéro de place (optionnel)
+  createdAt  DateTime @default(now())
+
+  // Foreign keys
+  studentId Int @unique // Un élève ne peut être que dans une salle
+  roomId    Int
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  room    Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  // Index
+  @@index([roomId])
+}

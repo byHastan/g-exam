@@ -1,53 +1,366 @@
 /**
  * RoomsPage - Répartition en salles
- * 
+ *
  * Permet de:
  * - Définir le nombre de salles
  * - Définir la capacité par salle
- * - Choisir le critère de répartition
- * - Visualiser et exporter les listes
+ * - Générer la répartition alphabétique
+ * - Visualiser les listes
  */
 
+import { useState, useMemo } from 'react';
 import { PageContainer } from '@/components/layout';
 import { EmptyState } from '@/components/common';
 import { Button } from '@/components/ui/button';
-import { DoorOpen, Settings2 } from 'lucide-react';
-import { useExamStore } from '@/stores/examStore';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DoorOpen, Settings2, Users, RefreshCw } from 'lucide-react';
+import { useStudentsStore, useSchoolsStore } from '@/stores';
+import {
+  dispatchAlphabetically,
+  calculateRequiredRooms,
+} from '@/core/room-dispatch/alphabeticalDispatch';
+import type { RoomAssignment } from '@/core/room-dispatch/alphabeticalDispatch';
 
 export function RoomsPage() {
-  const { candidatesCount } = useExamStore();
-  const hasStudents = candidatesCount > 0;
+  const { students } = useStudentsStore();
+  const { schools } = useSchoolsStore();
 
-  const handleConfigureRooms = () => {
-    // TODO: Ouvrir modal de configuration
-    console.log('Configurer les salles');
+  // États
+  const [roomCount, setRoomCount] = useState(5);
+  const [roomCapacity, setRoomCapacity] = useState(30);
+  const [roomAssignments, setRoomAssignments] = useState<RoomAssignment[]>([]);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+
+  // Formulaire
+  const [formRoomCount, setFormRoomCount] = useState('5');
+  const [formRoomCapacity, setFormRoomCapacity] = useState('30');
+
+  const hasStudents = students.length > 0;
+
+  // Calcul du nombre minimum de salles recommandées
+  const recommendedRooms = useMemo(() => {
+    return calculateRequiredRooms(students.length, roomCapacity);
+  }, [students.length, roomCapacity]);
+
+  // Helper pour obtenir le nom de l'établissement
+  const getSchoolName = (schoolId: number) => {
+    return schools.find((s) => s.id === schoolId)?.name || 'Inconnu';
   };
+
+  // Handlers
+  const handleOpenConfig = () => {
+    setFormRoomCount(roomCount.toString());
+    setFormRoomCapacity(roomCapacity.toString());
+    setIsConfigDialogOpen(true);
+  };
+
+  const handleSaveConfig = () => {
+    const newRoomCount = parseInt(formRoomCount) || 5;
+    const newCapacity = parseInt(formRoomCapacity) || 30;
+    setRoomCount(newRoomCount);
+    setRoomCapacity(newCapacity);
+    setIsConfigDialogOpen(false);
+  };
+
+  const handleGenerateAssignments = () => {
+    // Convertir les élèves au format attendu
+    const studentsForDispatch = students.map((s) => ({
+      id: String(s.id),
+      lastName: s.lastName,
+      firstName: s.firstName,
+    }));
+
+    const assignments = dispatchAlphabetically(
+      studentsForDispatch,
+      roomCount,
+      roomCapacity
+    );
+
+    setRoomAssignments(assignments);
+  };
+
+  const handleClearAssignments = () => {
+    setRoomAssignments([]);
+  };
+
+  // Statistiques des salles
+  const roomStats = useMemo(() => {
+    if (roomAssignments.length === 0) return null;
+
+    const totalAssigned = roomAssignments.reduce(
+      (sum, room) => sum + room.students.length,
+      0
+    );
+    const filledRooms = roomAssignments.filter(
+      (r) => r.students.length > 0
+    ).length;
+    const avgPerRoom =
+      filledRooms > 0 ? Math.round(totalAssigned / filledRooms) : 0;
+
+    return {
+      totalAssigned,
+      filledRooms,
+      emptyRooms: roomAssignments.length - filledRooms,
+      avgPerRoom,
+    };
+  }, [roomAssignments]);
+
+  // Filtrer les salles avec des élèves
+  const filledRooms = roomAssignments.filter((r) => r.students.length > 0);
 
   return (
     <PageContainer
       description="Répartissez les candidats dans les salles d'examen selon vos critères."
       action={
         hasStudents && (
-          <Button onClick={handleConfigureRooms}>
-            <Settings2 className="h-4 w-4 mr-2" />
-            Configurer les salles
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleOpenConfig}>
+              <Settings2 className="h-4 w-4 mr-2" />
+              Configurer
+            </Button>
+            {roomAssignments.length === 0 ? (
+              <Button onClick={handleGenerateAssignments}>
+                <Users className="h-4 w-4 mr-2" />
+                Générer la répartition
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={handleGenerateAssignments}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Regénérer
+              </Button>
+            )}
+          </div>
         )
       }
     >
       {hasStudents ? (
-        // TODO: Afficher la configuration et les listes de salles
-        <div className="space-y-4">
-          <div className="border rounded-md p-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              Configurez le nombre de salles et la capacité, puis choisissez le critère de répartition:
-            </p>
-            <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-              <li><strong>Alphabétique</strong> - Par ordre alphabétique des noms</li>
-              <li><strong>Par établissement</strong> - Regrouper les élèves du même établissement</li>
-              <li><strong>Mixte</strong> - Mélanger les établissements</li>
-            </ul>
+        <div className="space-y-6">
+          {/* Configuration actuelle */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Candidats à répartir
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{students.length}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Nombre de salles
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{roomCount}</p>
+                <p className="text-xs text-muted-foreground">
+                  Minimum recommandé: {recommendedRooms}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Capacité par salle
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{roomCapacity}</p>
+                <p className="text-xs text-muted-foreground">places maximum</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Capacité totale
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">
+                  {roomCount * roomCapacity}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {roomCount * roomCapacity >= students.length ? (
+                    <span className="text-green-600">Suffisant</span>
+                  ) : (
+                    <span className="text-red-600">Insuffisant</span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Résultat de la répartition */}
+          {roomAssignments.length > 0 ? (
+            <div className="space-y-4">
+              {/* Stats de la répartition */}
+              {roomStats && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">
+                      Résumé de la répartition
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-4">
+                      <Badge variant="secondary" className="text-sm py-1 px-3">
+                        {roomStats.totalAssigned} élèves assignés
+                      </Badge>
+                      <Badge variant="secondary" className="text-sm py-1 px-3">
+                        {roomStats.filledRooms} salles utilisées
+                      </Badge>
+                      <Badge variant="secondary" className="text-sm py-1 px-3">
+                        ~{roomStats.avgPerRoom} élèves/salle en moyenne
+                      </Badge>
+                      {roomStats.emptyRooms > 0 && (
+                        <Badge variant="outline" className="text-sm py-1 px-3">
+                          {roomStats.emptyRooms} salle(s) vide(s)
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Onglets par salle */}
+              <Tabs defaultValue={`room-1`} className="w-full">
+                <TabsList className="flex flex-wrap h-auto gap-1">
+                  {filledRooms.map((room) => (
+                    <TabsTrigger
+                      key={room.roomNumber}
+                      value={`room-${room.roomNumber}`}
+                      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                    >
+                      <DoorOpen className="h-4 w-4 mr-1" />
+                      Salle {room.roomNumber}
+                      <Badge variant="outline" className="ml-2">
+                        {room.students.length}
+                      </Badge>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+
+                {filledRooms.map((room) => (
+                  <TabsContent
+                    key={room.roomNumber}
+                    value={`room-${room.roomNumber}`}
+                    className="mt-4"
+                  >
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <DoorOpen className="h-5 w-5" />
+                          Salle {room.roomNumber}
+                        </CardTitle>
+                        <CardDescription>
+                          {room.students.length} élève(s) sur {roomCapacity}{' '}
+                          places
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[60px]">N°</TableHead>
+                                <TableHead>Nom</TableHead>
+                                <TableHead>Prénom</TableHead>
+                                <TableHead>Établissement</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {room.students.map((student, index) => {
+                                const fullStudent = students.find(
+                                  (s) => String(s.id) === student.id
+                                );
+                                return (
+                                  <TableRow key={student.id}>
+                                    <TableCell className="font-medium">
+                                      {index + 1}
+                                    </TableCell>
+                                    <TableCell>{student.lastName}</TableCell>
+                                    <TableCell>{student.firstName}</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                      {fullStudent
+                                        ? getSchoolName(fullStudent.schoolId)
+                                        : '—'}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                ))}
+              </Tabs>
+
+              {/* Bouton pour effacer */}
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={handleClearAssignments}>
+                  Effacer la répartition
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Répartition alphabétique
+                </CardTitle>
+                <CardDescription>
+                  Les élèves seront répartis par ordre alphabétique (nom puis
+                  prénom) dans les salles configurées.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">
+                    Cliquez sur "Générer la répartition" pour distribuer les{' '}
+                    {students.length} candidats dans {roomCount} salles.
+                  </p>
+                  <Button onClick={handleGenerateAssignments}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Générer la répartition
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       ) : (
         <EmptyState
@@ -56,6 +369,74 @@ export function RoomsPage() {
           icon={DoorOpen}
         />
       )}
+
+      {/* Dialog Configuration */}
+      <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configuration des salles</DialogTitle>
+            <DialogDescription>
+              Définissez le nombre de salles et leur capacité.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="roomCount">Nombre de salles</Label>
+              <Input
+                id="roomCount"
+                type="number"
+                min="1"
+                max="100"
+                value={formRoomCount}
+                onChange={(e) => setFormRoomCount(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Minimum recommandé:{' '}
+                {calculateRequiredRooms(
+                  students.length,
+                  parseInt(formRoomCapacity) || 30
+                )}{' '}
+                salles
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="roomCapacity">Capacité par salle</Label>
+              <Input
+                id="roomCapacity"
+                type="number"
+                min="1"
+                max="500"
+                value={formRoomCapacity}
+                onChange={(e) => setFormRoomCapacity(e.target.value)}
+              />
+            </div>
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm">
+                <strong>Capacité totale:</strong>{' '}
+                {(parseInt(formRoomCount) || 0) *
+                  (parseInt(formRoomCapacity) || 0)}{' '}
+                places
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {(parseInt(formRoomCount) || 0) *
+                  (parseInt(formRoomCapacity) || 0) >=
+                students.length
+                  ? '✓ Suffisant pour tous les candidats'
+                  : '⚠ Insuffisant pour tous les candidats'}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsConfigDialogOpen(false)}
+            >
+              Annuler
+            </Button>
+            <Button onClick={handleSaveConfig}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

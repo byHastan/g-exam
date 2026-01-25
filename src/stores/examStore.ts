@@ -4,25 +4,27 @@
  */
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 // Statut de l'examen
 export type ExamStatus = 'draft' | 'locked';
 
 interface ExamState {
   // Informations de l'examen actif
+  examId: number | null;
   examName: string | null;
   examYear: number | null;
   status: ExamStatus;
   passingGrade: number; // Seuil de réussite (ex: 10/20)
-  
-  // Compteurs pour le dashboard (seront connectés à la DB plus tard)
+
+  // Compteurs pour le dashboard
   candidatesCount: number;
   subjectsCount: number;
   passedCount: number;
   failedCount: number;
-  
+
   // Actions
-  setExam: (name: string, year: number) => void;
+  setExam: (id: number, name: string, year: number, passingGrade?: number) => void;
   setStatus: (status: ExamStatus) => void;
   setPassingGrade: (grade: number) => void;
   updateCounts: (counts: {
@@ -34,52 +36,64 @@ interface ExamState {
   clearExam: () => void;
 }
 
-export const useExamStore = create<ExamState>((set) => ({
-  // Valeurs par défaut (pas d'examen actif)
-  examName: null,
-  examYear: null,
-  status: 'draft',
-  passingGrade: 10,
-  
-  candidatesCount: 0,
-  subjectsCount: 0,
-  passedCount: 0,
-  failedCount: 0,
-
-  setExam: (name: string, year: number) => {
-    set({
-      examName: name,
-      examYear: year,
-      status: 'draft',
-    });
-  },
-
-  setStatus: (status: ExamStatus) => {
-    set({ status });
-  },
-
-  setPassingGrade: (grade: number) => {
-    set({ passingGrade: grade });
-  },
-
-  updateCounts: (counts) => {
-    set((state) => ({
-      candidatesCount: counts.candidates ?? state.candidatesCount,
-      subjectsCount: counts.subjects ?? state.subjectsCount,
-      passedCount: counts.passed ?? state.passedCount,
-      failedCount: counts.failed ?? state.failedCount,
-    }));
-  },
-
-  clearExam: () => {
-    set({
+export const useExamStore = create<ExamState>()(
+  persist(
+    (set) => ({
+      // Valeurs par défaut (pas d'examen actif)
+      examId: null,
       examName: null,
       examYear: null,
       status: 'draft',
+      passingGrade: 10,
+
       candidatesCount: 0,
       subjectsCount: 0,
       passedCount: 0,
       failedCount: 0,
-    });
-  },
-}));
+
+      setExam: (id: number, name: string, year: number, passingGrade?: number) => {
+        set({
+          examId: id,
+          examName: name,
+          examYear: year,
+          status: 'draft',
+          passingGrade: passingGrade ?? 10,
+        });
+      },
+
+      setStatus: (status: ExamStatus) => {
+        set({ status });
+      },
+
+      setPassingGrade: (grade: number) => {
+        set({ passingGrade: grade });
+      },
+
+      updateCounts: (counts) => {
+        set((state) => ({
+          candidatesCount: counts.candidates ?? state.candidatesCount,
+          subjectsCount: counts.subjects ?? state.subjectsCount,
+          passedCount: counts.passed ?? state.passedCount,
+          failedCount: counts.failed ?? state.failedCount,
+        }));
+      },
+
+      clearExam: () => {
+        set({
+          examId: null,
+          examName: null,
+          examYear: null,
+          status: 'draft',
+          passingGrade: 10,
+          candidatesCount: 0,
+          subjectsCount: 0,
+          passedCount: 0,
+          failedCount: 0,
+        });
+      },
+    }),
+    {
+      name: 'exam-storage',
+    }
+  )
+);
