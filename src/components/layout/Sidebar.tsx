@@ -31,7 +31,6 @@ import {
   BarChart3,
   DoorOpen,
   Download,
-  GraduationCap,
   Shield,
 } from 'lucide-react';
 
@@ -105,11 +104,13 @@ export function Sidebar() {
     <aside className="w-60 border-r bg-card flex flex-col h-screen shrink-0">
       {/* En-tête avec logo */}
       <div className="h-16 flex items-center gap-3 px-4 border-b shrink-0">
-        <div className="h-9 w-9 rounded-md bg-primary flex items-center justify-center">
-          <GraduationCap className="h-5 w-5 text-primary-foreground" />
-        </div>
+        <img 
+          src="/logo.png" 
+          alt="G-Exam" 
+          className="h-9 w-9 rounded-md object-contain"
+        />
         <div className="flex flex-col">
-          <span className="font-semibold text-sm">Exam Manager</span>
+          <span className="font-semibold text-sm">G-Exam</span>
           <span className="text-xs text-muted-foreground">Gestion d'examens</span>
         </div>
       </div>

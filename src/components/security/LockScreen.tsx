@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSecurityStore } from '@/stores';
-import { GraduationCap, KeyRound, Lock } from 'lucide-react';
+import { KeyRound, Lock } from 'lucide-react';
 import { useState } from 'react';
 
 export function LockScreen() {
@@ -62,9 +62,13 @@ export function LockScreen() {
             <Lock className="h-8 w-8 text-primary" />
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-center gap-2">
-              <GraduationCap className="h-6 w-6 text-primary" />
-              <CardTitle className="text-2xl">Exam Manager</CardTitle>
+            <div className="flex items-center justify-center gap-3">
+              <img 
+                src="/logo.png" 
+                alt="G-Exam" 
+                className="h-10 w-10 object-contain"
+              />
+              <CardTitle className="text-2xl">G-Exam</CardTitle>
             </div>
             <CardDescription className="text-base">
               L'application est verrouillée

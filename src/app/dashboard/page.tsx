@@ -153,8 +153,8 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-blue-600" />
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <p className="text-3xl font-bold">{stats.schoolsCount}</p>
@@ -212,7 +212,7 @@ export function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Bienvenue dans Exam Manager. Pour commencer:
+                  Bienvenue dans G-Exam. Pour commencer:
                 </p>
                 <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
                   <li>
