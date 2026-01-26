@@ -277,7 +277,6 @@ export async function assignManyStudentsToRoom(
       roomId: a.roomId,
       seatNumber: a.seatNumber,
     })),
-    skipDuplicates: true,
   });
 
   return result.count;

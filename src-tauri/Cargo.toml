@@ -1,8 +1,8 @@
 [package]
-name = "app"
+name = "G-Exam"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "G-Exam est une application de gestion d’examens scolaires permettant de centraliser les candidats, gérer les épreuves, saisir les notes, produire les classements, générer des statistiques et organiser la répartition des élèves en salles."
+authors = ["Stanysl'AS"]
 license = ""
 repository = ""
 edition = "2021"

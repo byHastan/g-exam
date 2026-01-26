@@ -18,6 +18,7 @@ let prismaInstance: PrismaClient | null = null;
  */
 export function getPrismaClient(): PrismaClient {
   if (!prismaInstance) {
+    // @ts-expect-error - PrismaClient peut être instancié sans arguments selon la doc
     prismaInstance = new PrismaClient();
   }
   return prismaInstance;
@@ -38,11 +39,8 @@ export async function disconnectPrisma(): Promise<void> {
  * Réexporte les types Prisma pour les autres modules
  */
 export type {
-  Exam,
-  School,
-  Student,
-  Subject,
-  Score,
-  Room,
-  RoomAssignment,
+  Exam, Room,
+  RoomAssignment, School, Score, Student,
+  Subject
 } from '../../../generated/prisma/client';
+

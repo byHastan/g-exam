@@ -6,15 +6,11 @@
  */
 
 // Client Prisma
-export { getPrismaClient, disconnectPrisma } from './client';
+export { disconnectPrisma, getPrismaClient } from './client';
 export type {
-  Exam,
-  School,
-  Student,
-  Subject,
-  Score,
-  Room,
-  RoomAssignment,
+    Exam, Room,
+    RoomAssignment, School, Score, Student,
+    Subject
 } from './client';
 
 // Service Exam
@@ -37,3 +33,4 @@ export * from './roomService';
 
 // Service Admin (gestion BD et sécurité)
 export * from './admin';
+

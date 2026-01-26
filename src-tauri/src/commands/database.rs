@@ -36,6 +36,13 @@ fn verify_admin_password(password: &str) -> bool {
     hasher.update(password.as_bytes());
     let result = hasher.finalize();
     let hash = hex::encode(result);
+    
+    // Debug: afficher les hashs pour diagnostic
+    println!("[DEBUG] Password reçu: '{}'", password);
+    println!("[DEBUG] Hash calculé: {}", hash);
+    println!("[DEBUG] Hash attendu:  {}", ADMIN_PASSWORD_HASH);
+    println!("[DEBUG] Match: {}", hash == ADMIN_PASSWORD_HASH);
+    
     hash == ADMIN_PASSWORD_HASH
 }
 

@@ -12,7 +12,7 @@
 import { PageContainer } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 
 // Types d'exports disponibles
 const EXPORT_TYPES = [

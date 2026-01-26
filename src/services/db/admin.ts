@@ -9,7 +9,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { save, open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 
 // ============================================
 // TYPES
