@@ -14,7 +14,8 @@ export type PageId =
   | 'rankings'
   | 'statistics'
   | 'rooms'
-  | 'exports';
+  | 'exports'
+  | 'admin';
 
 // Structure d'un item de menu
 export interface MenuItem {
@@ -100,4 +101,5 @@ export const PAGE_TITLES: Record<PageId, string> = {
   statistics: 'Statistiques',
   rooms: 'Répartition en salles',
   exports: 'Exports',
+  admin: 'Administration',
 };

@@ -5,17 +5,27 @@
  * - Titre de la page courante
  * - Informations sur l'examen actif (nom + année)
  * - Statut de l'examen (Brouillon / Verrouillé)
+ * - Bouton de verrouillage de l'application
  */
 
 import { useNavigationStore } from '@/stores/navigationStore';
 import { useExamStore } from '@/stores/examStore';
+import { useSecurityStore } from '@/stores';
 import { PAGE_TITLES } from '@/types/navigation';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Lock, Unlock } from 'lucide-react';
 
 export function Header() {
   const { currentPage } = useNavigationStore();
   const { examName, examYear, status } = useExamStore();
+  const { lockApp } = useSecurityStore();
 
   const pageTitle = PAGE_TITLES[currentPage];
   const hasExam = examName && examYear;
@@ -27,7 +37,7 @@ export function Header() {
         {pageTitle}
       </h1>
 
-      {/* Informations sur l'examen actif */}
+      {/* Informations sur l'examen actif + Bouton verrouillage */}
       <div className="flex items-center gap-4">
         {hasExam ? (
           <>
@@ -60,6 +70,26 @@ export function Header() {
             Aucun examen configuré
           </Badge>
         )}
+
+        {/* Bouton de verrouillage */}
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={lockApp}
+                className="h-9 w-9"
+              >
+                <Lock className="h-4 w-4" />
+                <span className="sr-only">Verrouiller l'application</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Verrouiller l'application</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </header>
   );

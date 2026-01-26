@@ -34,3 +34,6 @@ export * from './scoreService';
 
 // Service Room
 export * from './roomService';
+
+// Service Admin (gestion BD et sécurité)
+export * from './admin';

@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 /generated/prisma
+
+# Admin credentials (généré au build)
+admin-credentials.txt

@@ -9,7 +9,18 @@
     "core:default",
     "dialog:default",
     "dialog:allow-save",
+    "dialog:allow-open",
     "fs:default",
-    "fs:allow-download-write"
+    "fs:allow-download-write",
+    "fs:allow-appdata-read",
+    "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write",
+    "fs:allow-appdata-write-recursive",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-exists",
+    "fs:allow-copy-file",
+    "fs:read-all",
+    "fs:write-all"
   ]
 }

@@ -32,6 +32,7 @@ import {
   DoorOpen,
   Download,
   GraduationCap,
+  Shield,
 } from 'lucide-react';
 
 // Map des icônes Lucide par nom
@@ -129,6 +130,30 @@ export function Sidebar() {
 
       {/* Pied de sidebar */}
       <div className="p-4 border-t shrink-0">
+        {/* Lien admin discret */}
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => navigateTo('admin')}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-md mb-3',
+                  'text-sm font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  currentPage === 'admin'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                )}
+              >
+                <Shield className="h-4 w-4 shrink-0" />
+                <span className="truncate">Administration</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Gestion avancée de la base de données</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <Separator className="mb-3" />
         <p className="text-xs text-muted-foreground text-center">
           Version 1.0.0

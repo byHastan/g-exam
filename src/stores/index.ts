@@ -18,3 +18,5 @@ export type { Subject, CreateSubjectInput } from './subjectsStore';
 
 export { useScoresStore } from './scoresStore';
 export type { Score, StudentWithAverage } from './scoresStore';
+
+export { useSecurityStore } from './securityStore';

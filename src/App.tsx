@@ -2,13 +2,16 @@
  * App - Composant racine de l'application
  * 
  * Structure:
+ * - Écran de verrouillage si l'app n'est pas déverrouillée
  * - Layout global avec Sidebar + Header
  * - Système de navigation via Zustand
  * - Rendu conditionnel des pages
  */
 
+import { LockScreen } from '@/components/security';
 import { Sidebar, Header } from '@/components/layout';
 import { useNavigationStore } from '@/stores/navigationStore';
+import { useSecurityStore } from '@/stores';
 import type { PageId } from '@/types/navigation';
 
 // Import des pages
@@ -22,6 +25,7 @@ import { RankingsPage } from '@/app/rankings';
 import { StatisticsPage } from '@/app/statistics';
 import { RoomsPage } from '@/app/rooms';
 import { ExportsPage } from '@/app/exports';
+import { AdminPage } from '@/app/admin';
 
 // Map des composants de page par ID
 const PAGES: Record<PageId, React.ComponentType> = {
@@ -35,11 +39,18 @@ const PAGES: Record<PageId, React.ComponentType> = {
   statistics: StatisticsPage,
   rooms: RoomsPage,
   exports: ExportsPage,
+  admin: AdminPage,
 };
 
 function App() {
   const { currentPage } = useNavigationStore();
+  const { isAppUnlocked } = useSecurityStore();
   
+  // Afficher l'écran de verrouillage si l'app n'est pas déverrouillée
+  if (!isAppUnlocked) {
+    return <LockScreen />;
+  }
+
   // Récupérer le composant de la page courante
   const PageComponent = PAGES[currentPage];
 
