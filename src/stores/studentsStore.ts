@@ -3,8 +3,8 @@
  * Gère l'état local des élèves avec persistance
  */
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 // ============================================
 // TYPES
@@ -51,6 +51,12 @@ interface StudentsState {
   setExamYear: (year: number) => void;
   clearAll: () => void;
   setError: (error: string | null) => void;
+
+  /**
+   * Réassigne les N° Candidat selon l'ordre alphabétique
+   * Format: 0001, 0002, 0003...
+   */
+  assignCandidateNumbers: () => void;
 }
 
 // Compteur pour générer des IDs uniques
@@ -61,7 +67,7 @@ let candidateSequence = 1;
  * Génère un numéro de candidat unique
  */
 function generateCandidateNumber(year: number): string {
-  return `${year}-${String(candidateSequence++).padStart(5, '0')}`;
+  return `${year}-${String(candidateSequence++).padStart(5, "0")}`;
 }
 
 // ============================================
@@ -90,9 +96,10 @@ export const useStudentsStore = create<StudentsState>()(
         };
 
         set((state) => ({
-          students: [...state.students, newStudent].sort((a, b) =>
-            a.lastName.localeCompare(b.lastName) ||
-            a.firstName.localeCompare(b.firstName)
+          students: [...state.students, newStudent].sort(
+            (a, b) =>
+              a.lastName.localeCompare(b.lastName) ||
+              a.firstName.localeCompare(b.firstName),
           ),
           error: null,
         }));
@@ -114,9 +121,10 @@ export const useStudentsStore = create<StudentsState>()(
         }));
 
         set((state) => ({
-          students: [...state.students, ...newStudents].sort((a, b) =>
-            a.lastName.localeCompare(b.lastName) ||
-            a.firstName.localeCompare(b.firstName)
+          students: [...state.students, ...newStudents].sort(
+            (a, b) =>
+              a.lastName.localeCompare(b.lastName) ||
+              a.firstName.localeCompare(b.firstName),
           ),
           error: null,
         }));
@@ -137,11 +145,12 @@ export const useStudentsStore = create<StudentsState>()(
                     birthDate: data.birthDate ?? student.birthDate,
                     schoolId: data.schoolId ?? student.schoolId,
                   }
-                : student
+                : student,
             )
-            .sort((a, b) =>
-              a.lastName.localeCompare(b.lastName) ||
-              a.firstName.localeCompare(b.firstName)
+            .sort(
+              (a, b) =>
+                a.lastName.localeCompare(b.lastName) ||
+                a.firstName.localeCompare(b.firstName),
             ),
           error: null,
         }));
@@ -152,7 +161,7 @@ export const useStudentsStore = create<StudentsState>()(
         const student = students.find((s) => s.id === id);
 
         if (!student) {
-          set({ error: 'Élève non trouvé' });
+          set({ error: "Élève non trouvé" });
           return false;
         }
 
@@ -178,7 +187,7 @@ export const useStudentsStore = create<StudentsState>()(
           (s) =>
             s.firstName.toLowerCase().includes(lowerQuery) ||
             s.lastName.toLowerCase().includes(lowerQuery) ||
-            s.candidateNumber.toLowerCase().includes(lowerQuery)
+            s.candidateNumber.toLowerCase().includes(lowerQuery),
         );
       },
 
@@ -194,22 +203,54 @@ export const useStudentsStore = create<StudentsState>()(
       setError: (error: string | null) => {
         set({ error });
       },
+
+      assignCandidateNumbers: () => {
+        set((state) => {
+          // Trier les élèves par ordre alphabétique (nom puis prénom)
+          const sortedStudents = [...state.students].sort(
+            (a, b) =>
+              a.lastName
+                .toLowerCase()
+                .localeCompare(b.lastName.toLowerCase()) ||
+              a.firstName
+                .toLowerCase()
+                .localeCompare(b.firstName.toLowerCase()),
+          );
+
+          // Créer une map id -> nouveau numéro de candidat
+          const newNumbers = new Map<number, string>();
+          sortedStudents.forEach((student, index) => {
+            // Format: 0001, 0002, 0003...
+            newNumbers.set(student.id, String(index + 1).padStart(4, "0"));
+          });
+
+          // Mettre à jour les élèves avec leurs nouveaux numéros
+          return {
+            students: state.students.map((student) => ({
+              ...student,
+              candidateNumber:
+                newNumbers.get(student.id) || student.candidateNumber,
+            })),
+            error: null,
+          };
+        });
+      },
     }),
     {
-      name: 'students-storage',
+      name: "students-storage",
       onRehydrateStorage: () => (state) => {
         if (state) {
           // Mettre à jour les compteurs
           const maxId = Math.max(0, ...state.students.map((s) => s.id));
           nextId = maxId + 1;
-          
+
           // Trouver le plus grand numéro de séquence
           const sequences = state.students.map((s) => {
             const match = s.candidateNumber.match(/-(\d+)$/);
             return match ? parseInt(match[1], 10) : 0;
           });
           candidateSequence = Math.max(1, ...sequences) + 1;
-          
+
           // Convertir les dates
           state.students = state.students.map((s) => ({
             ...s,
@@ -218,6 +259,6 @@ export const useStudentsStore = create<StudentsState>()(
           }));
         }
       },
-    }
-  )
+    },
+  ),
 );

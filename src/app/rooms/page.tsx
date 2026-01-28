@@ -8,28 +8,17 @@
  * - Visualiser les listes
  */
 
-import { useState, useMemo } from 'react';
-import { PageContainer } from '@/components/layout';
-import { EmptyState } from '@/components/common';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { EmptyState } from "@/components/common";
+import { PageContainer } from "@/components/layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -37,44 +26,55 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  DoorOpen,
-  Settings2,
-  Users,
-  RefreshCw,
-  Download,
-  Printer,
-  FileSpreadsheet,
-  FileText,
-  ChevronDown,
-} from 'lucide-react';
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useStudentsStore, useSchoolsStore, useExamStore } from '@/stores';
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  exportRoomToExcel,
-  exportAllRoomsToExcel,
-  exportRoomToPdf,
-  exportAllRoomsToPdf,
-  printRoom,
-  printAllRooms,
-  type ExportRoom,
-  type ExamInfo,
-} from '@/lib/export';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { RoomAssignment } from "@/core/room-dispatch/alphabeticalDispatch";
 import {
-  dispatchAlphabetically,
   calculateRequiredRooms,
-} from '@/core/room-dispatch/alphabeticalDispatch';
-import type { RoomAssignment } from '@/core/room-dispatch/alphabeticalDispatch';
+  dispatchAlphabetically,
+} from "@/core/room-dispatch/alphabeticalDispatch";
+import {
+  exportAllRoomsToExcel,
+  exportAllRoomsToPdf,
+  exportRoomToExcel,
+  exportRoomToPdf,
+  printAllRooms,
+  printRoom,
+  type ExamInfo,
+  type ExportRoom,
+} from "@/lib/export";
+import { useExamStore, useSchoolsStore, useStudentsStore } from "@/stores";
+import {
+  ChevronDown,
+  DoorOpen,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Printer,
+  RefreshCw,
+  Settings2,
+  Users,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 
 export function RoomsPage() {
-  const { students } = useStudentsStore();
+  const { students, assignCandidateNumbers } = useStudentsStore();
   const { schools } = useSchoolsStore();
   const { examName, examYear, passingGrade, maxGrade } = useExamStore();
 
@@ -85,8 +85,8 @@ export function RoomsPage() {
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
   // Formulaire
-  const [formRoomCount, setFormRoomCount] = useState('5');
-  const [formRoomCapacity, setFormRoomCapacity] = useState('30');
+  const [formRoomCount, setFormRoomCount] = useState("5");
+  const [formRoomCapacity, setFormRoomCapacity] = useState("30");
 
   const hasStudents = students.length > 0;
 
@@ -97,7 +97,7 @@ export function RoomsPage() {
 
   // Helper pour obtenir le nom de l'établissement
   const getSchoolName = (schoolId: number) => {
-    return schools.find((s) => s.id === schoolId)?.name || 'Inconnu';
+    return schools.find((s) => s.id === schoolId)?.name || "Inconnu";
   };
 
   // Handlers
@@ -116,6 +116,9 @@ export function RoomsPage() {
   };
 
   const handleGenerateAssignments = () => {
+    // Réassigner les N° Candidat selon l'ordre alphabétique (0001, 0002, ...)
+    assignCandidateNumbers();
+
     // Convertir les élèves au format attendu
     const studentsForDispatch = students.map((s) => ({
       id: String(s.id),
@@ -126,7 +129,7 @@ export function RoomsPage() {
     const assignments = dispatchAlphabetically(
       studentsForDispatch,
       roomCount,
-      roomCapacity
+      roomCapacity,
     );
 
     setRoomAssignments(assignments);
@@ -142,10 +145,10 @@ export function RoomsPage() {
 
     const totalAssigned = roomAssignments.reduce(
       (sum, room) => sum + room.students.length,
-      0
+      0,
     );
     const filledRooms = roomAssignments.filter(
-      (r) => r.students.length > 0
+      (r) => r.students.length > 0,
     ).length;
     const avgPerRoom =
       filledRooms > 0 ? Math.round(totalAssigned / filledRooms) : 0;
@@ -164,12 +167,12 @@ export function RoomsPage() {
   // Préparer les données pour l'export
   const examInfo: ExamInfo = useMemo(
     () => ({
-      name: examName || 'Examen',
+      name: examName || "Examen",
       year: examYear || new Date().getFullYear(),
       passingGrade: passingGrade || 10,
       maxGrade: maxGrade || 20,
     }),
-    [examName, examYear, passingGrade, maxGrade]
+    [examName, examYear, passingGrade, maxGrade],
   );
 
   // Convertir les données de salle au format export
@@ -180,9 +183,13 @@ export function RoomsPage() {
       const fullStudent = students.find((s) => String(s.id) === student.id);
       return {
         id: student.id,
+        // Utiliser le N° Candidat du store (mis à jour par assignCandidateNumbers)
+        candidateNumber: fullStudent?.candidateNumber,
         lastName: student.lastName,
         firstName: student.firstName,
-        schoolName: fullStudent ? getSchoolName(fullStudent.schoolId) : undefined,
+        schoolName: fullStudent
+          ? getSchoolName(fullStudent.schoolId)
+          : undefined,
       };
     }),
   });
@@ -190,7 +197,7 @@ export function RoomsPage() {
   const exportRooms: ExportRoom[] = useMemo(
     () => filledRooms.map(getExportRoom),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filledRooms, students, schools, roomCapacity]
+    [filledRooms, students, schools, roomCapacity],
   );
 
   // Handlers d'export
@@ -291,9 +298,7 @@ export function RoomsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">
-                  {roomCount * roomCapacity}
-                </p>
+                <p className="text-2xl font-bold">{roomCount * roomCapacity}</p>
                 <p className="text-xs text-muted-foreground">
                   {roomCount * roomCapacity >= students.length ? (
                     <span className="text-green-600">Suffisant</span>
@@ -335,7 +340,7 @@ export function RoomsPage() {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Barre d'actions */}
                     <div className="flex flex-wrap items-center gap-2">
                       {/* Exporter tout */}
@@ -360,7 +365,11 @@ export function RoomsPage() {
                       </DropdownMenu>
 
                       {/* Imprimer tout */}
-                      <Button size="sm" variant="outline" onClick={handlePrintAll}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handlePrintAll}
+                      >
                         <Printer className="h-4 w-4 mr-2" />
                         Imprimer tout
                       </Button>
@@ -412,7 +421,7 @@ export function RoomsPage() {
                               Salle {room.roomNumber}
                             </CardTitle>
                             <CardDescription>
-                              {room.students.length} élève(s) sur {roomCapacity}{' '}
+                              {room.students.length} élève(s) sur {roomCapacity}{" "}
                               places
                             </CardDescription>
                           </div>
@@ -450,28 +459,30 @@ export function RoomsPage() {
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="w-[60px]">N°</TableHead>
+                                <TableHead className="w-[100px]">
+                                  N° Candidat
+                                </TableHead>
                                 <TableHead>Nom</TableHead>
                                 <TableHead>Prénom</TableHead>
                                 <TableHead>Établissement</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {room.students.map((student, index) => {
+                              {room.students.map((student) => {
                                 const fullStudent = students.find(
-                                  (s) => String(s.id) === student.id
+                                  (s) => String(s.id) === student.id,
                                 );
                                 return (
                                   <TableRow key={student.id}>
-                                    <TableCell className="font-medium">
-                                      {index + 1}
+                                    <TableCell className="font-medium font-mono">
+                                      {fullStudent?.candidateNumber || "—"}
                                     </TableCell>
                                     <TableCell>{student.lastName}</TableCell>
                                     <TableCell>{student.firstName}</TableCell>
                                     <TableCell className="text-muted-foreground">
                                       {fullStudent
                                         ? getSchoolName(fullStudent.schoolId)
-                                        : '—'}
+                                        : "—"}
                                     </TableCell>
                                   </TableRow>
                                 );
@@ -500,7 +511,7 @@ export function RoomsPage() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Users className="h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">
-                    Cliquez sur "Générer la répartition" pour distribuer les{' '}
+                    Cliquez sur "Générer la répartition" pour distribuer les{" "}
                     {students.length} candidats dans {roomCount} salles.
                   </p>
                   <Button onClick={handleGenerateAssignments}>
@@ -541,11 +552,11 @@ export function RoomsPage() {
                 onChange={(e) => setFormRoomCount(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Minimum recommandé:{' '}
+                Minimum recommandé:{" "}
                 {calculateRequiredRooms(
                   students.length,
-                  parseInt(formRoomCapacity) || 30
-                )}{' '}
+                  parseInt(formRoomCapacity) || 30,
+                )}{" "}
                 salles
               </p>
             </div>
@@ -562,17 +573,17 @@ export function RoomsPage() {
             </div>
             <div className="p-3 bg-muted rounded-lg">
               <p className="text-sm">
-                <strong>Capacité totale:</strong>{' '}
+                <strong>Capacité totale:</strong>{" "}
                 {(parseInt(formRoomCount) || 0) *
-                  (parseInt(formRoomCapacity) || 0)}{' '}
+                  (parseInt(formRoomCapacity) || 0)}{" "}
                 places
               </p>
               <p className="text-sm text-muted-foreground">
                 {(parseInt(formRoomCount) || 0) *
                   (parseInt(formRoomCapacity) || 0) >=
                 students.length
-                  ? '✓ Suffisant pour tous les candidats'
-                  : '⚠ Insuffisant pour tous les candidats'}
+                  ? "✓ Suffisant pour tous les candidats"
+                  : "⚠ Insuffisant pour tous les candidats"}
               </p>
             </div>
           </div>
