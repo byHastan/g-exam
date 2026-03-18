@@ -50,6 +50,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 export function AdminPage() {
   const { isAdminAuthenticated, authenticateAdmin, logout } =
@@ -64,10 +65,6 @@ export function AdminPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  const [operationMessage, setOperationMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
 
   // État des dialogues de confirmation
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -98,27 +95,18 @@ export function AdminPage() {
   // Handler d'export JSON
   const handleExport = async () => {
     setIsExporting(true);
-    setOperationMessage(null);
 
     try {
       if (isTauri()) {
         const result = await downloadExportedDataTauri();
-        setOperationMessage({
-          type: result.success ? "success" : "error",
-          text: result.message,
-        });
+        if (result.success) toast.success(result.message);
+        else toast.error(result.message);
       } else {
         downloadExportedData();
-        setOperationMessage({
-          type: "success",
-          text: "Données exportées avec succès",
-        });
+        toast.success("Données exportées avec succès");
       }
     } catch (error) {
-      setOperationMessage({
-        type: "error",
-        text: `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
-      });
+      toast.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
     }
 
     setIsExporting(false);
@@ -135,19 +123,15 @@ export function AdminPage() {
 
   const handleImportTauri = async () => {
     setIsImporting(true);
-    setOperationMessage(null);
 
     const result = await importFromFileTauri();
 
-    setOperationMessage({
-      type: result.success ? "success" : "error",
-      text: result.message,
-    });
+    if (result.success) toast.success(result.message);
+    else toast.error(result.message);
 
     setIsImporting(false);
 
     if (result.success) {
-      // Rafraîchir la page après import
       setTimeout(() => window.location.reload(), 1500);
     }
   };
@@ -157,24 +141,19 @@ export function AdminPage() {
     if (!file) return;
 
     setIsImporting(true);
-    setOperationMessage(null);
 
     const result = await importFromFile(file);
 
-    setOperationMessage({
-      type: result.success ? "success" : "error",
-      text: result.message,
-    });
+    if (result.success) toast.success(result.message);
+    else toast.error(result.message);
 
     setIsImporting(false);
 
-    // Reset l'input file
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
 
     if (result.success) {
-      // Rafraîchir la page après import
       setTimeout(() => window.location.reload(), 1500);
     }
   };
@@ -182,22 +161,13 @@ export function AdminPage() {
   // Handler de réinitialisation
   const handleReset = () => {
     setIsResetting(true);
-    setOperationMessage(null);
 
     try {
       clearAllData();
-      setOperationMessage({
-        type: "success",
-        text: "Toutes les données ont été supprimées. La page va se rafraîchir.",
-      });
-
-      // Rafraîchir la page après reset
+      toast.success("Toutes les données ont été supprimées. Rafraîchissement...");
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
-      setOperationMessage({
-        type: "error",
-        text: `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
-      });
+      toast.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
     }
 
     setIsResetDialogOpen(false);
@@ -280,19 +250,6 @@ export function AdminPage() {
           Déconnexion
         </Button>
       </div>
-
-      {/* Message d'opération */}
-      {operationMessage && (
-        <div
-          className={`p-4 rounded-lg border ${
-            operationMessage.type === "success"
-              ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200"
-              : "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200"
-          }`}
-        >
-          {operationMessage.text}
-        </div>
-      )}
 
       {/* Info stockage */}
       <Card>

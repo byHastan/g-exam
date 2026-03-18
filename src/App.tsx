@@ -12,6 +12,8 @@ import { LockScreen } from '@/components/security';
 import { Sidebar, Header } from '@/components/layout';
 import { useNavigationStore } from '@/stores/navigationStore';
 import { useSecurityStore } from '@/stores';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { Toaster } from 'sonner';
 import type { PageId } from '@/types/navigation';
 
 // Import des pages
@@ -45,10 +47,18 @@ const PAGES: Record<PageId, React.ComponentType> = {
 function App() {
   const { currentPage } = useNavigationStore();
   const { isAppUnlocked } = useSecurityStore();
+
+  // Raccourcis clavier globaux
+  useKeyboardShortcuts();
   
   // Afficher l'écran de verrouillage si l'app n'est pas déverrouillée
   if (!isAppUnlocked) {
-    return <LockScreen />;
+    return (
+      <>
+        <LockScreen />
+        <Toaster position="top-right" richColors closeButton />
+      </>
+    );
   }
 
   // Récupérer le composant de la page courante
@@ -66,9 +76,17 @@ function App() {
 
         {/* Contenu de la page - scrollable */}
         <main className="flex-1 overflow-auto p-6">
-          <PageComponent />
+          <div
+            key={currentPage}
+            className="h-full animate-in fade-in slide-in-from-bottom-1 duration-200"
+          >
+            <PageComponent />
+          </div>
         </main>
       </div>
+
+      {/* Notifications toast globales */}
+      <Toaster position="top-right" richColors closeButton />
     </div>
   );
 }

@@ -20,12 +20,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Lock, Unlock } from 'lucide-react';
+import { Lock, Moon, Sun, Unlock } from 'lucide-react';
+import { useDarkMode } from '@/hooks/useDarkMode';
 
 export function Header() {
   const { currentPage } = useNavigationStore();
   const { examName, examYear, status } = useExamStore();
   const { lockApp } = useSecurityStore();
+  const { isDark, toggle: toggleDarkMode } = useDarkMode();
 
   const pageTitle = PAGE_TITLES[currentPage];
   const hasExam = examName && examYear;
@@ -70,6 +72,26 @@ export function Header() {
             Aucun examen configuré
           </Badge>
         )}
+
+        {/* Bouton dark mode */}
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleDarkMode}
+                className="h-9 w-9"
+              >
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                <span className="sr-only">{isDark ? 'Mode clair' : 'Mode sombre'}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{isDark ? 'Mode clair' : 'Mode sombre'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         {/* Bouton de verrouillage */}
         <TooltipProvider delayDuration={300}>

@@ -6,9 +6,9 @@
  * - Classement des établissements par taux de réussite
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { PageContainer } from '@/components/layout';
-import { EmptyState } from '@/components/common';
+import { EmptyState, Pagination } from '@/components/common';
 import { Trophy, Medal, Award } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -123,6 +123,15 @@ export function RankingsPage() {
     }
   };
 
+  // Pagination pour le classement élèves
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentPageSize, setStudentPageSize] = useState(20);
+
+  const paginatedRankedStudents = useMemo(() => {
+    const start = (studentPage - 1) * studentPageSize;
+    return rankedStudents.slice(start, start + studentPageSize);
+  }, [rankedStudents, studentPage, studentPageSize]);
+
   const hasResults = rankedStudents.length > 0;
 
   return (
@@ -228,7 +237,7 @@ export function RankingsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rankedStudents.map((ranked) => {
+                    {paginatedRankedStudents.map((ranked) => {
                       const student = getStudentInfo(ranked.studentId);
                       const admitted = ranked.average >= passingGrade;
                       return (
@@ -282,6 +291,17 @@ export function RankingsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination */}
+              {rankedStudents.length > studentPageSize && (
+                <Pagination
+                  currentPage={studentPage}
+                  totalItems={rankedStudents.length}
+                  pageSize={studentPageSize}
+                  onPageChange={setStudentPage}
+                  onPageSizeChange={setStudentPageSize}
+                />
+              )}
             </div>
           </TabsContent>
 

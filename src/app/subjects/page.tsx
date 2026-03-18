@@ -43,6 +43,7 @@ import { Badge } from '@/components/ui/badge';
 import { FileText, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useSubjectsStore, useScoresStore } from '@/stores';
 import type { Subject } from '@/stores';
+import { toast } from 'sonner';
 
 export function SubjectsPage() {
   const { subjects, addSubject, updateSubject, deleteSubject, getTotalCoefficients, hasCoefficients } =
@@ -94,6 +95,7 @@ export function SubjectsPage() {
         maxScore: formMaxScore ? parseFloat(formMaxScore) : 20,
       });
       setIsAddDialogOpen(false);
+      toast.success(`Épreuve "${formName}" ajoutée`);
     }
   };
 
@@ -106,14 +108,17 @@ export function SubjectsPage() {
       });
       setIsEditDialogOpen(false);
       setSelectedSubject(null);
+      toast.success(`Épreuve modifiée`);
     }
   };
 
   const handleDelete = () => {
     if (selectedSubject) {
+      const name = selectedSubject.name;
       deleteSubject(selectedSubject.id);
       setIsDeleteDialogOpen(false);
       setSelectedSubject(null);
+      toast.success(`Épreuve "${name}" supprimée`);
     }
   };
 

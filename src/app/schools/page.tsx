@@ -42,6 +42,8 @@ import {
 import { Building2, Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useSchoolsStore, useStudentsStore } from '@/stores';
 import type { School } from '@/stores';
+import { toast } from 'sonner';
+import { useDebounce } from '@/hooks/useDebounce';
 
 export function SchoolsPage() {
   const { schools, addSchool, updateSchool, deleteSchool } = useSchoolsStore();
@@ -58,12 +60,13 @@ export function SchoolsPage() {
   const [formName, setFormName] = useState('');
   const [formCode, setFormCode] = useState('');
 
-  // Filtrage
-  const filteredSchools = searchQuery
+  // Debounce + Filtrage
+  const debouncedSearch = useDebounce(searchQuery, 300);
+  const filteredSchools = debouncedSearch
     ? schools.filter(
         (s) =>
-          s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          s.code?.toLowerCase().includes(searchQuery.toLowerCase())
+          s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          s.code?.toLowerCase().includes(debouncedSearch.toLowerCase())
       )
     : schools;
 
@@ -92,6 +95,7 @@ export function SchoolsPage() {
       setIsAddDialogOpen(false);
       setFormName('');
       setFormCode('');
+      toast.success(`Établissement "${formName}" ajouté`);
     }
   };
 
@@ -103,14 +107,17 @@ export function SchoolsPage() {
       });
       setIsEditDialogOpen(false);
       setSelectedSchool(null);
+      toast.success(`Établissement modifié`);
     }
   };
 
   const handleDelete = () => {
     if (selectedSchool) {
+      const name = selectedSchool.name;
       deleteSchool(selectedSchool.id);
       setIsDeleteDialogOpen(false);
       setSelectedSchool(null);
+      toast.success(`Établissement "${name}" supprimé`);
     }
   };
 

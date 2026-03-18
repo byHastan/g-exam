@@ -47,6 +47,7 @@ import {
 } from '@/stores';
 import { Lock, Pencil, Plus, Settings, Trash2, Unlock } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 // Compteur simple pour les IDs d'examen
 let examIdCounter = 1;
@@ -107,6 +108,7 @@ export function ExamSetupPage() {
       setExam(examIdCounter++, formName.trim(), year, grade, max);
       setExamYear(year);
       setIsCreateDialogOpen(false);
+      toast.success(`Examen "${formName.trim()}" créé`);
     }
   };
 
@@ -118,21 +120,23 @@ export function ExamSetupPage() {
       setExam(examId, formName.trim(), year, grade, max);
       setExamYear(year);
       setIsEditDialogOpen(false);
+      toast.success('Examen modifié');
     }
   };
 
   const handleDelete = () => {
-    // Supprimer toutes les données associées
     clearScores();
     clearStudents();
     clearSubjects();
     clearExam();
     setIsDeleteDialogOpen(false);
+    toast.success('Examen et données associées supprimés');
   };
 
   const handleToggleLock = () => {
     if (status === 'locked') {
       setStatus('draft');
+      toast.success('Examen déverrouillé');
     } else {
       setIsLockDialogOpen(true);
     }
@@ -141,6 +145,7 @@ export function ExamSetupPage() {
   const handleConfirmLock = () => {
     setStatus('locked');
     setIsLockDialogOpen(false);
+    toast.success('Examen verrouillé');
   };
 
   const isFormValid = formName.trim() && formYear && parseInt(formYear) > 2000;

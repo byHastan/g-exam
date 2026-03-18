@@ -9,7 +9,7 @@
  * - Rechercher et filtrer
  */
 
-import { EmptyState } from '@/components/common';
+import { EmptyState, Pagination } from '@/components/common';
 import { PageContainer } from '@/components/layout';
 import {
   AlertDialog,
@@ -59,7 +59,9 @@ import { downloadStudentTemplate, parseExcelFile, validateExcelFile, type ExcelS
 import type { Student } from '@/stores';
 import { useSchoolsStore, useScoresStore, useStudentsStore, useSubjectsStore } from '@/stores';
 import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Pencil, Plus, Search, Trash2, Upload, Users } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { useDebounce } from '@/hooks/useDebounce';
 
 export function StudentsPage() {
   const { students, addStudent, addManyStudents, updateStudent, deleteStudent } = useStudentsStore();
@@ -92,19 +94,32 @@ export function StudentsPage() {
   const [formGender, setFormGender] = useState<string>('');
   const [formIsAbsent, setFormIsAbsent] = useState(false);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Debounce de la recherche
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
   // Filtrage
-  const filteredStudents = students.filter((s) => {
+  const filteredStudents = useMemo(() => students.filter((s) => {
     const matchesSearch =
-      !searchQuery ||
-      s.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.candidateNumber.toLowerCase().includes(searchQuery.toLowerCase());
+      !debouncedSearch ||
+      s.firstName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      s.lastName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      s.candidateNumber.toLowerCase().includes(debouncedSearch.toLowerCase());
 
     const matchesSchool =
       filterSchool === 'all' || s.schoolId === parseInt(filterSchool);
 
     return matchesSearch && matchesSchool;
-  });
+  }), [students, debouncedSearch, filterSchool]);
+
+  // Pagination des résultats filtrés
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, currentPage, pageSize]);
 
   // Helpers
   const getSchoolName = (schoolId: number) => {
@@ -148,6 +163,7 @@ export function StudentsPage() {
         gender: formGender || undefined,
       });
       setIsAddDialogOpen(false);
+      toast.success(`Élève "${formLastName} ${formFirstName}" ajouté`);
     }
   };
 
@@ -162,14 +178,17 @@ export function StudentsPage() {
       });
       setIsEditDialogOpen(false);
       setSelectedStudent(null);
+      toast.success('Élève modifié');
     }
   };
 
   const handleDelete = () => {
     if (selectedStudent) {
+      const name = `${selectedStudent.lastName} ${selectedStudent.firstName}`;
       deleteStudent(selectedStudent.id);
       setIsDeleteDialogOpen(false);
       setSelectedStudent(null);
+      toast.success(`Élève "${name}" supprimé`);
     }
   };
 
@@ -314,7 +333,7 @@ export function StudentsPage() {
                 className="pl-9"
               />
             </div>
-            <Select value={filterSchool} onValueChange={setFilterSchool}>
+            <Select value={filterSchool} onValueChange={(val) => { setFilterSchool(val); setCurrentPage(1); }}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Tous les établissements" />
               </SelectTrigger>
@@ -334,73 +353,86 @@ export function StudentsPage() {
 
           {/* Table des élèves */}
           {students.length > 0 && (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>N° Candidat</TableHead>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Prénom</TableHead>
-                    <TableHead>Établissement</TableHead>
-                    <TableHead className="text-center">Notes</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => (
-                    <TableRow key={student.id} className={student.isAbsent ? 'opacity-60' : ''}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{student.candidateNumber}</Badge>
-                          {student.isAbsent && (
-                            <Badge variant="destructive" className="text-xs">Absent</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {student.lastName}
-                      </TableCell>
-                      <TableCell>{student.firstName}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {getSchoolName(student.schoolId)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={getScoresCount(student.id) === subjects.length ? 'default' : 'secondary'}>
-                          {getScoresCount(student.id)} / {subjects.length}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenEdit(student)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenDelete(student)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredStudents.length === 0 && students.length > 0 && (
+            <>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
-                        <p className="text-muted-foreground">
-                          Aucun élève trouvé
-                        </p>
-                      </TableCell>
+                      <TableHead>N° Candidat</TableHead>
+                      <TableHead>Nom</TableHead>
+                      <TableHead>Prénom</TableHead>
+                      <TableHead>Établissement</TableHead>
+                      <TableHead className="text-center">Notes</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedStudents.map((student) => (
+                      <TableRow key={student.id} className={student.isAbsent ? 'opacity-60' : ''}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">{student.candidateNumber}</Badge>
+                            {student.isAbsent && (
+                              <Badge variant="destructive" className="text-xs">Absent</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {student.lastName}
+                        </TableCell>
+                        <TableCell>{student.firstName}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {getSchoolName(student.schoolId)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={getScoresCount(student.id) === subjects.length ? 'default' : 'secondary'}>
+                            {getScoresCount(student.id)} / {subjects.length}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenEdit(student)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDelete(student)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredStudents.length === 0 && students.length > 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <p className="text-muted-foreground">
+                            Aucun élève trouvé
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {filteredStudents.length > pageSize && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalItems={filteredStudents.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                />
+              )}
+            </>
           )}
 
           {/* État vide */}
