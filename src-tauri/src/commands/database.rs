@@ -1,7 +1,7 @@
 //! Commandes Tauri pour la gestion de la base de données
 //! 
 //! Ce module gère:
-//! - Le chemin de la BD dans app data
+//! - Le chemin de la BD (dossier prisma en dev, app data en prod)
 //! - L'initialisation de la BD
 //! - L'export/import de la BD
 //! - La réinitialisation de la BD
@@ -9,6 +9,7 @@
 use sha2::{Sha256, Digest};
 use std::fs;
 use std::path::PathBuf;
+use std::env;
 use tauri::{AppHandle, Manager};
 
 /// Hash du mot de passe admin injecté au build
@@ -25,7 +26,33 @@ fn get_app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// Retourne le chemin complet de la base de données
+/// En mode debug/dev: cherche à la racine du projet (où Prisma la crée)
+/// En mode release: utilise app_data_dir
 fn get_db_path(app: &AppHandle) -> Result<PathBuf, String> {
+    // En mode debug, la BD est à la racine du projet (file:./exam-manager.db)
+    if cfg!(debug_assertions) {
+        if let Ok(cwd) = env::current_dir() {
+            // BD à la racine du projet (DATABASE_URL="file:./exam-manager.db")
+            let root_db = cwd.join(DB_FILENAME);
+            if root_db.exists() {
+                println!("[DEBUG] BD trouvée à la racine: {:?}", root_db);
+                return Ok(root_db);
+            }
+            
+            // Fallback: peut-être dans prisma/
+            let prisma_db = cwd.join("prisma").join(DB_FILENAME);
+            if prisma_db.exists() {
+                println!("[DEBUG] BD trouvée dans prisma/: {:?}", prisma_db);
+                return Ok(prisma_db);
+            }
+            
+            // BD n'existe pas encore, retourner le chemin à la racine
+            println!("[DEBUG] BD non trouvée, chemin par défaut: {:?}", root_db);
+            return Ok(root_db);
+        }
+    }
+    
+    // Mode release: utiliser app_data
     let app_data = get_app_data_dir(app)?;
     Ok(app_data.join(DB_FILENAME))
 }

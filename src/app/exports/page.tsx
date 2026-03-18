@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { rankStudents } from "@/core/rankings/studentRanking";
 import {
   exportFullReportToExcel,
+  exportProcesVerbalToPdf,
   exportResultsToExcel,
   exportResultsToPdf,
   exportSchoolResultsToExcel,
@@ -48,6 +49,7 @@ import {
   type ExamInfo,
   type ExportOptions,
   type ExportStudent,
+  type ProcesVerbalData,
   type SchoolStats,
   type SubjectStats,
 } from "@/lib/export";
@@ -109,6 +111,13 @@ export function ExportsPage() {
   const [sortBy, setSortBy] = useState<SortOption>("rank");
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>("all");
 
+  // Compter les présents et absents
+  const attendanceCounts = useMemo(() => {
+    const totalAbsent = students.filter((s) => s.isAbsent).length;
+    const totalPresent = students.length - totalAbsent;
+    return { totalPresent, totalAbsent };
+  }, [students]);
+
   // Préparer les informations de l'examen
   const examInfo: ExamInfo = useMemo(
     () => ({
@@ -116,8 +125,10 @@ export function ExportsPage() {
       year: examYear || new Date().getFullYear(),
       passingGrade: passingGrade || 10,
       maxGrade: maxGrade || 20,
+      totalPresent: attendanceCounts.totalPresent,
+      totalAbsent: attendanceCounts.totalAbsent,
     }),
-    [examName, examYear, passingGrade, maxGrade],
+    [examName, examYear, passingGrade, maxGrade, attendanceCounts],
   );
 
   // Préparer les sujets pour le calcul
@@ -143,12 +154,14 @@ export function ExportsPage() {
         subjectsForCalc,
         averageOptions,
       );
-      const status: "admitted" | "failed" | "pending" =
-        average === null
-          ? "pending"
-          : average >= passingGrade
-            ? "admitted"
-            : "failed";
+      const status: "admitted" | "failed" | "pending" | "absent" =
+        student.isAbsent
+          ? "absent"
+          : average === null
+            ? "pending"
+            : average >= passingGrade
+              ? "admitted"
+              : "failed";
 
       // Récupérer les notes
       const studentScores: Record<string, number | null> = {};
@@ -283,21 +296,49 @@ export function ExportsPage() {
     [includeScores, includeRank, filterStatus, sortBy],
   );
 
-  // Compteurs pour l'affichage
+  // Compteurs pour l'affichage (les absents ne comptent pas en "en attente")
   const counts = useMemo(() => {
     const withScores = rankedResults.filter((r) => r.average !== null);
+    const presentCount = students.filter((s) => !s.isAbsent).length;
     return {
       total: students.length,
       withScores: withScores.length,
       admitted: withScores.filter((r) => r.status === "admitted").length,
       failed: withScores.filter((r) => r.status === "failed").length,
-      pending: students.length - withScores.length,
+      pending: Math.max(0, presentCount - withScores.length), // uniquement les présents sans notes
     };
   }, [students, rankedResults]);
 
   // Vérifier si on a des données
   const hasData = students.length > 0;
   const hasScores = counts.withScores > 0;
+
+  // Données pour le procès-verbal (inscrits, présents, absents, admis, ajournés, taux)
+  const procesVerbalData: ProcesVerbalData = useMemo(() => {
+    const totalPresent = attendanceCounts.totalPresent;
+    const successRate =
+      totalPresent > 0 ? (counts.admitted / totalPresent) * 100 : 0;
+    const failureRate =
+      totalPresent > 0 ? (counts.failed / totalPresent) * 100 : 0;
+    return {
+      examName: examInfo.name,
+      examYear: examInfo.year,
+      totalInscrits: students.length,
+      totalPresent: attendanceCounts.totalPresent,
+      totalAbsent: attendanceCounts.totalAbsent,
+      admitted: counts.admitted,
+      failed: counts.failed,
+      successRate,
+      failureRate,
+    };
+  }, [
+    examInfo.name,
+    examInfo.year,
+    students.length,
+    attendanceCounts,
+    counts.admitted,
+    counts.failed,
+  ]);
 
   // ============================================
   // HANDLERS D'EXPORT
@@ -309,6 +350,16 @@ export function ExportsPage() {
 
   const endExport = () => {
     setExportState({ isExporting: false, exportType: null });
+  };
+
+  // Export du procès-verbal (PDF)
+  const handleExportProcesVerbal = async () => {
+    startExport("proces-verbal");
+    try {
+      await exportProcesVerbalToPdf(procesVerbalData);
+    } finally {
+      endExport();
+    }
   };
 
   // Export des résultats globaux
@@ -474,6 +525,18 @@ export function ExportsPage() {
                 <Users className="h-3 w-3 mr-1" />
                 {counts.total} candidats
               </Badge>
+              <Badge
+                variant="outline"
+                className="text-sm bg-green-50 text-green-800 border-green-200"
+              >
+                {attendanceCounts.totalPresent} présent(s)
+              </Badge>
+              <Badge
+                variant="outline"
+                className="text-sm bg-orange-50 text-orange-800 border-orange-200"
+              >
+                {attendanceCounts.totalAbsent} absent(s)
+              </Badge>
               <Badge variant="secondary" className="text-sm">
                 <BookOpen className="h-3 w-3 mr-1" />
                 {subjects.length} épreuves
@@ -498,6 +561,35 @@ export function ExportsPage() {
                 </>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Procès-verbal */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Procès-verbal de l'examen
+            </CardTitle>
+            <CardDescription>
+              Document officiel : inscrits, présents, absents, admis, ajournés,
+              taux de réussite et taux d'échec
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              onClick={handleExportProcesVerbal}
+              disabled={!hasData || exportState.isExporting}
+            >
+              {exportState.isExporting &&
+              exportState.exportType === "proces-verbal" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4 mr-2" />
+              )}
+              Télécharger le procès-verbal (PDF)
+            </Button>
           </CardContent>
         </Card>
 

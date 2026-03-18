@@ -8,31 +8,11 @@
  * - Export PDF et Excel
  */
 
-import { useMemo, useState, useCallback } from 'react';
-import { PageContainer } from '@/components/layout';
-import { EmptyState } from '@/components/common';
-import {
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  Download,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-} from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { EmptyState } from "@/components/common";
+import { PageContainer } from "@/components/layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,46 +20,66 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
-  useStudentsStore,
-  useSubjectsStore,
-  useScoresStore,
-  useSchoolsStore,
-  useExamStore,
-} from '@/stores';
-import { generateGlobalStats } from '@/core/statistics/globalStats';
-import { generateSubjectStats } from '@/core/statistics/subjectStats';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { generateGlobalStats } from "@/core/statistics/globalStats";
+import { generateSubjectStats } from "@/core/statistics/subjectStats";
 import {
+  exportFullReportToExcel,
   exportResultsToExcel,
   exportResultsToPdf,
+  exportSchoolResultsToExcel,
+  exportSchoolResultsToPdf,
   exportSchoolStatsToExcel,
   exportSchoolStatsToPdf,
   exportSubjectStatsToExcel,
   exportSubjectStatsToPdf,
-  exportFullReportToExcel,
-  exportSchoolResultsToExcel,
-  exportSchoolResultsToPdf,
   type ExamInfo,
   type ExportStudent,
-  type SchoolStats,
   type SubjectStats as ExportSubjectStats,
-} from '@/lib/export';
+  type SchoolStats,
+} from "@/lib/export";
 import {
-  BarChart,
+  useExamStore,
+  useSchoolsStore,
+  useScoresStore,
+  useStudentsStore,
+  useSubjectsStore,
+} from "@/stores";
+import {
+  BarChart3,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  TrendingDown,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import {
   Bar,
-  XAxis,
-  YAxis,
+  BarChart,
   CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
   Legend,
-} from 'recharts';
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
-const COLORS = ['#22c55e', '#ef4444'];
+const COLORS = ["#22c55e", "#ef4444"];
 
 export function StatisticsPage() {
   const { students } = useStudentsStore();
@@ -99,27 +99,33 @@ export function StatisticsPage() {
         coefficient: s.coefficient,
         maxScore: s.maxScore,
       })),
-    [subjects]
+    [subjects],
   );
 
   // Options pour le calcul de moyenne (barème global)
-  const averageOptions = useMemo(
-    () => ({ targetScale: maxGrade }),
-    [maxGrade]
-  );
+  const averageOptions = useMemo(() => ({ targetScale: maxGrade }), [maxGrade]);
 
   // Calculer les résultats des élèves pour les stats globales
   const studentResults = useMemo(() => {
-    return students
-      .map((student) => {
-        const average = calculateAverage(student.id, subjectsForCalc, averageOptions);
-        return {
-          average: average ?? 0,
-          admitted: average !== null && average >= passingGrade,
-        };
-      })
-      .filter((r) => r.average > 0);
-  }, [students, calculateAverage, subjectsForCalc, averageOptions, passingGrade]);
+    return students.map((student) => {
+      const average = calculateAverage(
+        student.id,
+        subjectsForCalc,
+        averageOptions,
+      );
+      return {
+        average: average ?? 0,
+        admitted: average !== null && average >= passingGrade,
+        isAbsent: student.isAbsent,
+      };
+    });
+  }, [
+    students,
+    calculateAverage,
+    subjectsForCalc,
+    averageOptions,
+    passingGrade,
+  ]);
 
   // Statistiques globales
   const globalStats = useMemo(() => {
@@ -137,15 +143,17 @@ export function StatisticsPage() {
 
   // Helper pour obtenir le nom d'une épreuve
   const getSubjectName = (subjectId: string) => {
-    return subjects.find((s) => s.id === parseInt(subjectId))?.name || 'Inconnu';
+    return (
+      subjects.find((s) => s.id === parseInt(subjectId))?.name || "Inconnu"
+    );
   };
 
   // Données pour le graphique camembert
   const pieData = useMemo(() => {
     if (globalStats.totalCandidates === 0) return [];
     return [
-      { name: 'Admis', value: globalStats.admitted },
-      { name: 'Ajournés', value: globalStats.failed },
+      { name: "Admis", value: globalStats.admitted },
+      { name: "Ajournés", value: globalStats.failed },
     ];
   }, [globalStats]);
 
@@ -154,7 +162,7 @@ export function StatisticsPage() {
     return subjectStats.map((stat) => {
       const subject = subjects.find((s) => s.id === parseInt(stat.subjectId));
       return {
-        name: subject?.name || 'Inconnu',
+        name: subject?.name || "Inconnu",
         moyenne: stat.average,
         min: stat.minScore,
         max: stat.maxScore,
@@ -170,7 +178,11 @@ export function StatisticsPage() {
     >();
 
     students.forEach((student) => {
-      const average = calculateAverage(student.id, subjectsForCalc, averageOptions);
+      const average = calculateAverage(
+        student.id,
+        subjectsForCalc,
+        averageOptions,
+      );
       if (average === null) return;
 
       const existing = statsMap.get(student.schoolId) || {
@@ -188,15 +200,22 @@ export function StatisticsPage() {
 
     return Array.from(statsMap.entries()).map(([schoolId, data]) => ({
       schoolId,
-      schoolName:
-        schools.find((s) => s.id === schoolId)?.name || 'Inconnu',
+      schoolName: schools.find((s) => s.id === schoolId)?.name || "Inconnu",
       total: data.total,
       admitted: data.admitted,
       successRate:
         data.total > 0 ? Math.round((data.admitted / data.total) * 100) : 0,
-      average: data.total > 0 ? Math.round((data.sumAvg / data.total) * 100) / 100 : 0,
+      average:
+        data.total > 0 ? Math.round((data.sumAvg / data.total) * 100) / 100 : 0,
     }));
-  }, [students, calculateAverage, subjectsForCalc, averageOptions, passingGrade, schools]);
+  }, [
+    students,
+    calculateAverage,
+    subjectsForCalc,
+    averageOptions,
+    passingGrade,
+    schools,
+  ]);
 
   const hasResults = globalStats.totalCandidates > 0;
 
@@ -205,21 +224,37 @@ export function StatisticsPage() {
   // ============================================
 
   // Informations de l'examen pour les exports
-  const examInfo: ExamInfo = useMemo(() => ({
-    name: examName || 'Examen',
-    year: examYear || new Date().getFullYear(),
-    passingGrade,
-    maxGrade,
-  }), [examName, examYear, passingGrade, maxGrade]);
+  const examInfo: ExamInfo = useMemo(
+    () => ({
+      name: examName || "Examen",
+      year: examYear || new Date().getFullYear(),
+      passingGrade,
+      maxGrade,
+      totalPresent: globalStats.totalPresent,
+      totalAbsent: globalStats.totalAbsent,
+    }),
+    [
+      examName,
+      examYear,
+      passingGrade,
+      maxGrade,
+      globalStats.totalPresent,
+      globalStats.totalAbsent,
+    ],
+  );
 
   // Préparer les données des élèves pour l'export
   const exportStudents: ExportStudent[] = useMemo(() => {
     // Calculer les moyennes et trier par rang
     const studentsWithAverage = students.map((student) => {
-      const average = calculateAverage(student.id, subjectsForCalc, averageOptions);
+      const average = calculateAverage(
+        student.id,
+        subjectsForCalc,
+        averageOptions,
+      );
       const studentScores = getScoresByStudent(student.id);
       const scoresMap: Record<string, number | null> = {};
-      
+
       subjects.forEach((s) => {
         const score = studentScores.find((sc) => sc.subjectId === s.id);
         scoresMap[String(s.id)] = score?.value ?? null;
@@ -230,33 +265,74 @@ export function StatisticsPage() {
         average,
         scores: scoresMap,
       };
-    }).filter((s) => s.average !== null);
-
-    // Trier par moyenne décroissante pour calculer le rang
-    const sorted = [...studentsWithAverage].sort(
-      (a, b) => (b.average ?? 0) - (a.average ?? 0)
+    });
+    // Inclure tous les élèves (présents avec moyenne + absents / en attente)
+    const allWithData = studentsWithAverage.concat(
+      students
+        .filter((s) => !studentsWithAverage.some((w) => w.id === s.id))
+        .map((student) => {
+          const average = calculateAverage(
+            student.id,
+            subjectsForCalc,
+            averageOptions,
+          );
+          const studentScores = getScoresByStudent(student.id);
+          const scoresMap: Record<string, number | null> = {};
+          subjects.forEach((subj) => {
+            const score = studentScores.find((sc) => sc.subjectId === subj.id);
+            scoresMap[String(subj.id)] = score?.value ?? null;
+          });
+          return { ...student, average, scores: scoresMap };
+        }),
     );
 
-    // Assigner les rangs
-    return sorted.map((student, index) => {
+    // Trier : présents avec moyenne par rang, puis absents / en attente
+    const presentWithAvg = allWithData.filter(
+      (s) => !s.isAbsent && s.average !== null,
+    );
+    const sortedPresent = [...presentWithAvg].sort(
+      (a, b) => (b.average ?? 0) - (a.average ?? 0),
+    );
+    const rest = allWithData.filter((s) => s.isAbsent || s.average === null);
+    const sorted = [...sortedPresent, ...rest];
+
+    return sorted.map((student) => {
       const school = schools.find((s) => s.id === student.schoolId);
-      const status: 'admitted' | 'failed' | 'pending' = 
-        student.average === null ? 'pending' :
-        student.average >= passingGrade ? 'admitted' : 'failed';
+      const status: "admitted" | "failed" | "pending" | "absent" =
+        student.isAbsent
+          ? "absent"
+          : student.average === null
+            ? "pending"
+            : student.average >= passingGrade
+              ? "admitted"
+              : "failed";
+      const rank =
+        !student.isAbsent && student.average !== null
+          ? sortedPresent.findIndex((s) => s.id === student.id) + 1
+          : null;
 
       return {
         candidateNumber: student.candidateNumber,
         lastName: student.lastName,
         firstName: student.firstName,
         gender: student.gender,
-        schoolName: school?.name || 'Inconnu',
+        schoolName: school?.name || "Inconnu",
         scores: student.scores,
         average: student.average,
-        rank: index + 1,
+        rank,
         status,
       };
     });
-  }, [students, subjects, schools, calculateAverage, getScoresByStudent, subjectsForCalc, averageOptions, passingGrade]);
+  }, [
+    students,
+    subjects,
+    schools,
+    calculateAverage,
+    getScoresByStudent,
+    subjectsForCalc,
+    averageOptions,
+    passingGrade,
+  ]);
 
   // Statistiques d'établissement formatées pour l'export
   const exportSchoolStats: SchoolStats[] = useMemo(() => {
@@ -275,7 +351,7 @@ export function StatisticsPage() {
     return subjectStats.map((stat) => {
       const subject = subjects.find((s) => s.id === parseInt(stat.subjectId));
       return {
-        subjectName: subject?.name || 'Inconnu',
+        subjectName: subject?.name || "Inconnu",
         coefficient: subject?.coefficient ?? null,
         totalScores: stat.count,
         average: stat.average,
@@ -298,14 +374,12 @@ export function StatisticsPage() {
   // FONCTIONS D'EXPORT
   // ============================================
 
-  const handleExport = useCallback(async (
-    exportFn: () => Promise<void>
-  ) => {
+  const handleExport = useCallback(async (exportFn: () => Promise<void>) => {
     setIsExporting(true);
     try {
       await exportFn();
     } catch (error) {
-      console.error('Erreur lors de l\'export:', error);
+      console.error("Erreur lors de l'export:", error);
     } finally {
       setIsExporting(false);
     }
@@ -313,40 +387,44 @@ export function StatisticsPage() {
 
   // Export résultats complets
   const handleExportResultsExcel = useCallback(() => {
-    handleExport(() => exportResultsToExcel(
-      examInfo,
-      exportStudents,
-      exportSubjects,
-      { includeScores: true, includeRank: true, sortBy: 'rank' }
-    ));
+    handleExport(() =>
+      exportResultsToExcel(examInfo, exportStudents, exportSubjects, {
+        includeScores: true,
+        includeRank: true,
+        sortBy: "rank",
+      }),
+    );
   }, [handleExport, examInfo, exportStudents, exportSubjects]);
 
   const handleExportResultsPdf = useCallback(() => {
-    handleExport(() => exportResultsToPdf(
-      examInfo,
-      exportStudents,
-      exportSubjects,
-      { includeScores: true, includeRank: true, sortBy: 'rank' }
-    ));
+    handleExport(() =>
+      exportResultsToPdf(examInfo, exportStudents, exportSubjects, {
+        includeScores: true,
+        includeRank: true,
+        sortBy: "rank",
+      }),
+    );
   }, [handleExport, examInfo, exportStudents, exportSubjects]);
 
   // Export admis uniquement
   const handleExportAdmittedExcel = useCallback(() => {
-    handleExport(() => exportResultsToExcel(
-      examInfo,
-      exportStudents,
-      exportSubjects,
-      { includeRank: true, sortBy: 'rank', filterStatus: 'admitted' }
-    ));
+    handleExport(() =>
+      exportResultsToExcel(examInfo, exportStudents, exportSubjects, {
+        includeRank: true,
+        sortBy: "rank",
+        filterStatus: "admitted",
+      }),
+    );
   }, [handleExport, examInfo, exportStudents, exportSubjects]);
 
   const handleExportAdmittedPdf = useCallback(() => {
-    handleExport(() => exportResultsToPdf(
-      examInfo,
-      exportStudents,
-      exportSubjects,
-      { includeRank: true, sortBy: 'rank', filterStatus: 'admitted' }
-    ));
+    handleExport(() =>
+      exportResultsToPdf(examInfo, exportStudents, exportSubjects, {
+        includeRank: true,
+        sortBy: "rank",
+        filterStatus: "admitted",
+      }),
+    );
   }, [handleExport, examInfo, exportStudents, exportSubjects]);
 
   // Export stats établissements
@@ -369,35 +447,54 @@ export function StatisticsPage() {
 
   // Export rapport complet
   const handleExportFullReportExcel = useCallback(() => {
-    handleExport(() => exportFullReportToExcel(
-      examInfo,
-      exportStudents,
-      exportSubjects,
-      exportSchoolStats,
-      exportSubjectStats
-    ));
-  }, [handleExport, examInfo, exportStudents, exportSubjects, exportSchoolStats, exportSubjectStats]);
+    handleExport(() =>
+      exportFullReportToExcel(
+        examInfo,
+        exportStudents,
+        exportSubjects,
+        exportSchoolStats,
+        exportSubjectStats,
+      ),
+    );
+  }, [
+    handleExport,
+    examInfo,
+    exportStudents,
+    exportSubjects,
+    exportSchoolStats,
+    exportSubjectStats,
+  ]);
 
   // Export résultats par établissement
-  const handleExportSchoolResultsExcel = useCallback((schoolName: string) => {
-    handleExport(() => exportSchoolResultsToExcel(
-      examInfo,
-      exportStudents,
-      exportSubjects,
-      schoolName,
-      { includeScores: true, includeRank: true, sortBy: 'rank' }
-    ));
-  }, [handleExport, examInfo, exportStudents, exportSubjects]);
+  const handleExportSchoolResultsExcel = useCallback(
+    (schoolName: string) => {
+      handleExport(() =>
+        exportSchoolResultsToExcel(
+          examInfo,
+          exportStudents,
+          exportSubjects,
+          schoolName,
+          { includeScores: true, includeRank: true, sortBy: "rank" },
+        ),
+      );
+    },
+    [handleExport, examInfo, exportStudents, exportSubjects],
+  );
 
-  const handleExportSchoolResultsPdf = useCallback((schoolName: string) => {
-    handleExport(() => exportSchoolResultsToPdf(
-      examInfo,
-      exportStudents,
-      exportSubjects,
-      schoolName,
-      { includeScores: true, includeRank: true, sortBy: 'rank' }
-    ));
-  }, [handleExport, examInfo, exportStudents, exportSubjects]);
+  const handleExportSchoolResultsPdf = useCallback(
+    (schoolName: string) => {
+      handleExport(() =>
+        exportSchoolResultsToPdf(
+          examInfo,
+          exportStudents,
+          exportSubjects,
+          schoolName,
+          { includeScores: true, includeRank: true, sortBy: "rank" },
+        ),
+      );
+    },
+    [handleExport, examInfo, exportStudents, exportSubjects],
+  );
 
   return (
     <PageContainer description="Analysez les résultats de l'examen avec des statistiques détaillées et des graphiques.">
@@ -485,6 +582,10 @@ export function StatisticsPage() {
                   <div className="text-2xl font-bold">
                     {globalStats.totalCandidates}
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    {globalStats.totalPresent} présent(s) /{" "}
+                    {globalStats.totalAbsent} absent(s)
+                  </p>
                 </CardContent>
               </Card>
 
@@ -577,7 +678,9 @@ export function StatisticsPage() {
               {/* Stats supplémentaires */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Résumé statistique</CardTitle>
+                  <CardTitle className="text-base">
+                    Résumé statistique
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
@@ -585,6 +688,18 @@ export function StatisticsPage() {
                     <span className="font-bold text-lg">
                       {globalStats.overallAverage.toFixed(2)}/{maxGrade}
                     </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                    <span className="text-sm">Candidats présents</span>
+                    <Badge className="bg-blue-100 text-blue-800">
+                      {globalStats.totalPresent}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                    <span className="text-sm">Candidats absents</span>
+                    <Badge className="bg-orange-100 text-orange-800">
+                      {globalStats.totalAbsent}
+                    </Badge>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
                     <span className="text-sm">Candidats admis</span>
@@ -598,7 +713,9 @@ export function StatisticsPage() {
                   </div>
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                     <span className="text-sm">Seuil de réussite</span>
-                    <span className="font-medium">{passingGrade}/{maxGrade}</span>
+                    <span className="font-medium">
+                      {passingGrade}/{maxGrade}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -677,7 +794,9 @@ export function StatisticsPage() {
                     <TableHead>Établissement</TableHead>
                     <TableHead className="text-center">Candidats</TableHead>
                     <TableHead className="text-center">Admis</TableHead>
-                    <TableHead className="text-center">Taux de réussite</TableHead>
+                    <TableHead className="text-center">
+                      Taux de réussite
+                    </TableHead>
                     <TableHead className="text-center">Moyenne</TableHead>
                     <TableHead className="text-center">Exporter</TableHead>
                   </TableRow>
@@ -690,7 +809,9 @@ export function StatisticsPage() {
                         <TableCell className="font-medium">
                           {stat.schoolName}
                         </TableCell>
-                        <TableCell className="text-center">{stat.total}</TableCell>
+                        <TableCell className="text-center">
+                          {stat.total}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="secondary">{stat.admitted}</Badge>
                         </TableCell>
@@ -698,8 +819,8 @@ export function StatisticsPage() {
                           <span
                             className={`font-bold ${
                               stat.successRate >= 50
-                                ? 'text-green-600'
-                                : 'text-red-600'
+                                ? "text-green-600"
+                                : "text-red-600"
                             }`}
                           >
                             {stat.successRate}%
@@ -729,13 +850,19 @@ export function StatisticsPage() {
                               </DropdownMenuLabel>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => handleExportSchoolResultsExcel(stat.schoolName)}
+                                onClick={() =>
+                                  handleExportSchoolResultsExcel(
+                                    stat.schoolName,
+                                  )
+                                }
                               >
                                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                                 Résultats (Excel)
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleExportSchoolResultsPdf(stat.schoolName)}
+                                onClick={() =>
+                                  handleExportSchoolResultsPdf(stat.schoolName)
+                                }
                               >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Résultats (PDF)

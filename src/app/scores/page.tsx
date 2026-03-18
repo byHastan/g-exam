@@ -7,17 +7,17 @@
  * - Filtrer par établissement
  */
 
-import { useState, useMemo } from 'react';
-import { PageContainer } from '@/components/layout';
-import { EmptyState } from '@/components/common';
-import { Input } from '@/components/ui/input';
+import { EmptyState } from "@/components/common";
+import { PageContainer } from "@/components/layout";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -25,16 +25,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { PenLine, Search, CheckCircle2 } from 'lucide-react';
+} from "@/components/ui/table";
 import {
+  useExamStore,
+  useSchoolsStore,
+  useScoresStore,
   useStudentsStore,
   useSubjectsStore,
-  useScoresStore,
-  useSchoolsStore,
-  useExamStore,
-} from '@/stores';
+} from "@/stores";
+import { CheckCircle2, PenLine, Search } from "lucide-react";
+import { useMemo, useState } from "react";
 
 export function ScoresPage() {
   const { students } = useStudentsStore();
@@ -44,13 +44,13 @@ export function ScoresPage() {
   const { getScore, upsertScore, calculateAverage } = useScoresStore();
 
   // États locaux
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterSchool, setFilterSchool] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterSchool, setFilterSchool] = useState<string>("all");
   const [editingCell, setEditingCell] = useState<{
     studentId: number;
     subjectId: number;
   } | null>(null);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
 
   // Vérifier si les prérequis sont remplis
   const hasPrerequisites = students.length > 0 && subjects.length > 0;
@@ -65,7 +65,7 @@ export function ScoresPage() {
         s.candidateNumber.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesSchool =
-        filterSchool === 'all' || s.schoolId === parseInt(filterSchool);
+        filterSchool === "all" || s.schoolId === parseInt(filterSchool);
 
       return matchesSearch && matchesSchool;
     });
@@ -79,24 +79,26 @@ export function ScoresPage() {
         coefficient: s.coefficient,
         maxScore: s.maxScore,
       })),
-    [subjects]
+    [subjects],
   );
 
   // Options pour le calcul de moyenne (barème global)
-  const averageOptions = useMemo(
-    () => ({ targetScale: maxGrade }),
-    [maxGrade]
-  );
+  const averageOptions = useMemo(() => ({ targetScale: maxGrade }), [maxGrade]);
 
   // Handlers
-  const handleCellClick = (studentId: number, subjectId: number) => {
+  const handleCellClick = (
+    studentId: number,
+    subjectId: number,
+    isAbsent: boolean,
+  ) => {
+    if (isAbsent) return; // Ne pas permettre la saisie pour un élève absent
     const existingScore = getScore(studentId, subjectId);
-    setInputValue(existingScore?.value.toString() || '');
+    setInputValue(existingScore?.value.toString() || "");
     setEditingCell({ studentId, subjectId });
   };
 
   const handleInputBlur = () => {
-    if (editingCell && inputValue !== '') {
+    if (editingCell && inputValue !== "") {
       const value = parseFloat(inputValue);
       const subject = subjects.find((s) => s.id === editingCell.subjectId);
 
@@ -105,15 +107,15 @@ export function ScoresPage() {
       }
     }
     setEditingCell(null);
-    setInputValue('');
+    setInputValue("");
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleInputBlur();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setEditingCell(null);
-      setInputValue('');
+      setInputValue("");
     }
   };
 
@@ -161,18 +163,22 @@ export function ScoresPage() {
           </div>
 
           {/* Légende */}
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-green-100 border border-green-300" />
               Admis (≥ {passingGrade}/{maxGrade})
             </span>
             <span className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-red-100 border border-red-300" />
-              Ajourné ({'<'} {passingGrade}/{maxGrade})
+              Ajourné ({"<"} {passingGrade}/{maxGrade})
             </span>
             <span className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-gray-100 border border-gray-300" />
               Notes manquantes
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-orange-100 border border-orange-300" />
+              Absent (saisie désactivée)
             </span>
           </div>
 
@@ -185,12 +191,16 @@ export function ScoresPage() {
                     Candidat
                   </TableHead>
                   {subjects.map((subject) => (
-                    <TableHead key={subject.id} className="text-center min-w-[100px]">
+                    <TableHead
+                      key={subject.id}
+                      className="text-center min-w-[100px]"
+                    >
                       <div className="flex flex-col items-center">
                         <span>{subject.name}</span>
                         <span className="text-xs text-muted-foreground">
                           / {subject.maxScore}
-                          {subject.coefficient && ` (coef ${subject.coefficient})`}
+                          {subject.coefficient &&
+                            ` (coef ${subject.coefficient})`}
                         </span>
                       </div>
                     </TableHead>
@@ -205,13 +215,25 @@ export function ScoresPage() {
                 {filteredStudents.map((student) => {
                   const average = getStudentAverage(student.id);
                   const admitted = isAdmitted(average);
+                  const isAbsent = student.isAbsent;
 
                   return (
-                    <TableRow key={student.id}>
+                    <TableRow
+                      key={student.id}
+                      className={isAbsent ? "opacity-70 bg-muted/30" : ""}
+                    >
                       <TableCell className="sticky left-0 bg-background z-10 font-medium">
                         <div>
                           <p>
                             {student.lastName} {student.firstName}
+                            {isAbsent && (
+                              <Badge
+                                variant="destructive"
+                                className="ml-2 text-xs"
+                              >
+                                Absent
+                              </Badge>
+                            )}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {student.candidateNumber}
@@ -221,19 +243,24 @@ export function ScoresPage() {
                       {subjects.map((subject) => {
                         const score = getScore(student.id, subject.id);
                         const isEditing =
+                          !isAbsent &&
                           editingCell?.studentId === student.id &&
                           editingCell?.subjectId === subject.id;
 
                         return (
                           <TableCell
                             key={subject.id}
-                            className="text-center p-0"
+                            className={`text-center p-0 ${isAbsent ? "cursor-not-allowed bg-muted/20" : "cursor-pointer"}`}
                             onClick={() =>
                               !isEditing &&
-                              handleCellClick(student.id, subject.id)
+                              handleCellClick(student.id, subject.id, isAbsent)
                             }
                           >
-                            {isEditing ? (
+                            {isAbsent ? (
+                              <div className="py-2 px-4 text-muted-foreground text-sm">
+                                —
+                              </div>
+                            ) : isEditing ? (
                               <Input
                                 type="number"
                                 min="0"
@@ -248,21 +275,25 @@ export function ScoresPage() {
                               />
                             ) : (
                               <div
-                                className={`py-2 px-4 cursor-pointer hover:bg-muted transition-colors ${
-                                  score ? '' : 'text-muted-foreground'
+                                className={`py-2 px-4 hover:bg-muted transition-colors ${
+                                  score ? "" : "text-muted-foreground"
                                 }`}
                               >
-                                {score?.value ?? '—'}
+                                {score?.value ?? "—"}
                               </div>
                             )}
                           </TableCell>
                         );
                       })}
                       <TableCell className="text-center">
-                        {average !== null ? (
+                        {isAbsent ? (
+                          <span className="text-muted-foreground text-sm">
+                            —
+                          </span>
+                        ) : average !== null ? (
                           <span
                             className={`font-bold ${
-                              admitted ? 'text-green-600' : 'text-red-600'
+                              admitted ? "text-green-600" : "text-red-600"
                             }`}
                           >
                             {average.toFixed(2)}
@@ -272,7 +303,14 @@ export function ScoresPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        {average !== null ? (
+                        {isAbsent ? (
+                          <Badge
+                            variant="outline"
+                            className="text-muted-foreground"
+                          >
+                            Absent
+                          </Badge>
+                        ) : average !== null ? (
                           admitted ? (
                             <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
                               <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -294,7 +332,9 @@ export function ScoresPage() {
                       colSpan={subjects.length + 3}
                       className="text-center py-8"
                     >
-                      <p className="text-muted-foreground">Aucun élève trouvé</p>
+                      <p className="text-muted-foreground">
+                        Aucun élève trouvé
+                      </p>
                     </TableCell>
                   </TableRow>
                 )}

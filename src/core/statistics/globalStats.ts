@@ -21,25 +21,31 @@ export interface StudentResult {
   average: number;
   /** L'élève est-il admis ? */
   admitted: boolean;
+  /** L'élève est-il absent ? (false par défaut = présent) */
+  isAbsent?: boolean;
 }
 
 /**
  * Statistiques globales de l'examen
  */
 export interface GlobalStats {
-  /** Nombre total de candidats */
+  /** Nombre total de candidats inscrits */
   totalCandidates: number;
-  /** Nombre d'admis */
+  /** Nombre de candidats présents */
+  totalPresent: number;
+  /** Nombre de candidats absents */
+  totalAbsent: number;
+  /** Nombre d'admis (parmi les présents) */
   admitted: number;
-  /** Nombre d'ajournés (échoués) */
+  /** Nombre d'ajournés (échoués, parmi les présents) */
   failed: number;
-  /** Taux de réussite en pourcentage (0-100) */
+  /** Taux de réussite en pourcentage (0-100), calculé sur les présents */
   successRate: number;
-  /** Moyenne générale de tous les candidats */
+  /** Moyenne générale de tous les candidats présents */
   overallAverage: number;
-  /** Meilleure moyenne */
+  /** Meilleure moyenne (parmi les présents) */
   maxAverage: number;
-  /** Plus faible moyenne */
+  /** Plus faible moyenne (parmi les présents) */
   minAverage: number;
 }
 
@@ -73,45 +79,63 @@ function isValidAverage(average: number): boolean {
  * Génère les statistiques globales de l'examen
  * 
  * Règles métier :
- * - totalCandidates = nombre total d'élèves avec une moyenne valide
- * - admitted = nombre d'élèves où admitted === true
- * - failed = totalCandidates - admitted
- * - successRate = (admitted / totalCandidates) * 100
- * - overallAverage = moyenne de toutes les moyennes
- * - maxAverage = plus haute moyenne
- * - minAverage = plus basse moyenne
+ * - totalCandidates = nombre total d'élèves inscrits
+ * - totalAbsent = nombre d'élèves absents
+ * - totalPresent = nombre d'élèves présents (totalCandidates - totalAbsent)
+ * - admitted = nombre d'élèves présents où admitted === true
+ * - failed = totalPresent - admitted
+ * - successRate = (admitted / totalPresent) * 100 (calculé uniquement sur les présents)
+ * - overallAverage = moyenne de toutes les moyennes des présents
+ * - maxAverage = plus haute moyenne parmi les présents
+ * - minAverage = plus basse moyenne parmi les présents
  * - Tous les résultats numériques sont arrondis à 2 décimales
  * - Les moyennes invalides (NaN, Infinity) sont ignorées
+ * - Les élèves absents sont exclus des calculs de performance
  * 
  * @param students - Liste des résultats des élèves
  * @returns Statistiques globales de l'examen
  * 
  * @example
  * generateGlobalStats([
- *   { average: 12, admitted: true },
- *   { average: 8, admitted: false },
- *   { average: 15, admitted: true },
- *   { average: 10, admitted: true },
+ *   { average: 12, admitted: true, isAbsent: false },
+ *   { average: 8, admitted: false, isAbsent: false },
+ *   { average: 15, admitted: true, isAbsent: false },
+ *   { average: 0, admitted: false, isAbsent: true },
  * ]);
  * // Résultat:
  * // {
  * //   totalCandidates: 4,
- * //   admitted: 3,
+ * //   totalPresent: 3,
+ * //   totalAbsent: 1,
+ * //   admitted: 2,
  * //   failed: 1,
- * //   successRate: 75,
- * //   overallAverage: 11.25,
+ * //   successRate: 66.67,
+ * //   overallAverage: 11.67,
  * //   maxAverage: 15,
  * //   minAverage: 8,
  * // }
  */
 export function generateGlobalStats(students: StudentResult[]): GlobalStats {
-  // Filtrer les résultats avec des moyennes valides
-  const validStudents = students.filter((s) => isValidAverage(s.average));
+  // Nombre total d'inscrits
+  const totalCandidates = students.length;
 
-  // Cas où aucun élève valide
-  if (validStudents.length === 0) {
+  // Séparer les présents des absents
+  const absentStudents = students.filter((s) => s.isAbsent === true);
+  const presentStudents = students.filter((s) => s.isAbsent !== true);
+
+  // Nombre d'absents et présents
+  const totalAbsent = absentStudents.length;
+  const totalPresent = presentStudents.length;
+
+  // Filtrer les présents avec des moyennes valides pour les calculs
+  const validPresentStudents = presentStudents.filter((s) => isValidAverage(s.average));
+
+  // Cas où aucun élève présent valide
+  if (validPresentStudents.length === 0) {
     return {
-      totalCandidates: 0,
+      totalCandidates,
+      totalPresent,
+      totalAbsent,
       admitted: 0,
       failed: 0,
       successRate: 0,
@@ -121,34 +145,33 @@ export function generateGlobalStats(students: StudentResult[]): GlobalStats {
     };
   }
 
-  // Nombre total de candidats
-  const totalCandidates = validStudents.length;
+  // Nombre d'admis (parmi les présents)
+  const admitted = validPresentStudents.filter((s) => s.admitted).length;
 
-  // Nombre d'admis
-  const admitted = validStudents.filter((s) => s.admitted).length;
+  // Nombre d'ajournés (parmi les présents)
+  const failed = validPresentStudents.length - admitted;
 
-  // Nombre d'ajournés
-  const failed = totalCandidates - admitted;
+  // Taux de réussite = (admis / présents valides) * 100
+  const successRate = roundToTwoDecimals((admitted / validPresentStudents.length) * 100);
 
-  // Taux de réussite = (admis / total) * 100
-  const successRate = roundToTwoDecimals((admitted / totalCandidates) * 100);
+  // Moyenne générale = somme des moyennes des présents / nombre de présents
+  const sumAverages = validPresentStudents.reduce((acc, s) => acc + s.average, 0);
+  const overallAverage = roundToTwoDecimals(sumAverages / validPresentStudents.length);
 
-  // Moyenne générale = somme des moyennes / nombre de candidats
-  const sumAverages = validStudents.reduce((acc, s) => acc + s.average, 0);
-  const overallAverage = roundToTwoDecimals(sumAverages / totalCandidates);
-
-  // Meilleure moyenne
+  // Meilleure moyenne (parmi les présents)
   const maxAverage = roundToTwoDecimals(
-    Math.max(...validStudents.map((s) => s.average))
+    Math.max(...validPresentStudents.map((s) => s.average))
   );
 
-  // Plus faible moyenne
+  // Plus faible moyenne (parmi les présents)
   const minAverage = roundToTwoDecimals(
-    Math.min(...validStudents.map((s) => s.average))
+    Math.min(...validPresentStudents.map((s) => s.average))
   );
 
   return {
     totalCandidates,
+    totalPresent,
+    totalAbsent,
     admitted,
     failed,
     successRate,

@@ -1,11 +1,11 @@
 /**
- * AdminPage - Page d'administration de la base de données
+ * AdminPage - Page d'administration des données
  *
  * Permet aux administrateurs de:
  * - S'authentifier avec le mot de passe admin
- * - Exporter la base de données
- * - Importer une base de données
- * - Réinitialiser la base de données
+ * - Exporter les données (JSON)
+ * - Importer des données (JSON)
+ * - Réinitialiser les données
  */
 
 import {
@@ -17,44 +17,47 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
-  exportDatabase,
-  getDatabasePath,
-  importDatabase,
-  resetDatabase,
-} from '@/services/db/admin';
-import { useSecurityStore } from '@/stores';
+  clearAllData,
+  downloadExportedData,
+  downloadExportedDataTauri,
+  importFromFile,
+  importFromFileTauri,
+  isTauri,
+} from "@/services/dataExport";
+import { useSecurityStore } from "@/stores";
 import {
   AlertTriangle,
   Database,
   Download,
+  FileJson,
   KeyRound,
   LogOut,
   RefreshCw,
   Shield,
   Upload,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
+} from "lucide-react";
+import { useRef, useState } from "react";
 
 export function AdminPage() {
-  const { isAdminAuthenticated, authenticateAdmin, logout, isSessionValid } =
+  const { isAdminAuthenticated, authenticateAdmin, logout } =
     useSecurityStore();
 
   // État du formulaire de connexion
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // État des opérations
@@ -62,111 +65,141 @@ export function AdminPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [operationMessage, setOperationMessage] = useState<{
-    type: 'success' | 'error';
+    type: "success" | "error";
     text: string;
   } | null>(null);
 
   // État des dialogues de confirmation
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-  const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Chemin de la BD
-  const [dbPath, setDbPath] = useState<string>('');
-
-  // Charger le chemin de la BD au montage
-  useEffect(() => {
-    getDatabasePath()
-      .then(setDbPath)
-      .catch((err) => console.error('Erreur chemin BD:', err));
-  }, []);
-
-  // Vérifier la validité de la session au montage
-  useEffect(() => {
-    isSessionValid();
-  }, [isSessionValid]);
+  // Référence pour l'input file
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handler de connexion
   const handleLogin = async () => {
     if (!password.trim()) {
-      setLoginError('Veuillez entrer le mot de passe');
+      setLoginError("Veuillez entrer le mot de passe");
       return;
     }
 
     setIsLoggingIn(true);
-    setLoginError('');
+    setLoginError("");
 
     const success = await authenticateAdmin(password);
 
     if (!success) {
-      setLoginError('Mot de passe incorrect');
+      setLoginError("Mot de passe incorrect");
     }
 
-    setPassword('');
+    setPassword("");
     setIsLoggingIn(false);
   };
 
-  // Handler d'export
+  // Handler d'export JSON
   const handleExport = async () => {
     setIsExporting(true);
     setOperationMessage(null);
 
-    const result = await exportDatabase();
-
-    setOperationMessage({
-      type: result.success ? 'success' : 'error',
-      text: result.message,
-    });
+    try {
+      if (isTauri()) {
+        const result = await downloadExportedDataTauri();
+        setOperationMessage({
+          type: result.success ? "success" : "error",
+          text: result.message,
+        });
+      } else {
+        downloadExportedData();
+        setOperationMessage({
+          type: "success",
+          text: "Données exportées avec succès",
+        });
+      }
+    } catch (error) {
+      setOperationMessage({
+        type: "error",
+        text: `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
+      });
+    }
 
     setIsExporting(false);
   };
 
-  // Handler d'import
-  const handleImport = async () => {
-    if (!confirmPassword.trim()) {
-      setOperationMessage({
-        type: 'error',
-        text: 'Veuillez confirmer avec votre mot de passe',
-      });
-      return;
+  // Handler d'import JSON
+  const handleImportClick = () => {
+    if (isTauri()) {
+      handleImportTauri();
+    } else {
+      fileInputRef.current?.click();
     }
+  };
+
+  const handleImportTauri = async () => {
+    setIsImporting(true);
+    setOperationMessage(null);
+
+    const result = await importFromFileTauri();
+
+    setOperationMessage({
+      type: result.success ? "success" : "error",
+      text: result.message,
+    });
+
+    setIsImporting(false);
+
+    if (result.success) {
+      // Rafraîchir la page après import
+      setTimeout(() => window.location.reload(), 1500);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
     setIsImporting(true);
     setOperationMessage(null);
 
-    const result = await importDatabase(confirmPassword);
+    const result = await importFromFile(file);
 
     setOperationMessage({
-      type: result.success ? 'success' : 'error',
+      type: result.success ? "success" : "error",
       text: result.message,
     });
 
-    setConfirmPassword('');
-    setIsImportDialogOpen(false);
     setIsImporting(false);
+
+    // Reset l'input file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    if (result.success) {
+      // Rafraîchir la page après import
+      setTimeout(() => window.location.reload(), 1500);
+    }
   };
 
   // Handler de réinitialisation
-  const handleReset = async () => {
-    if (!confirmPassword.trim()) {
-      setOperationMessage({
-        type: 'error',
-        text: 'Veuillez confirmer avec votre mot de passe',
-      });
-      return;
-    }
-
+  const handleReset = () => {
     setIsResetting(true);
     setOperationMessage(null);
 
-    const result = await resetDatabase(confirmPassword);
+    try {
+      clearAllData();
+      setOperationMessage({
+        type: "success",
+        text: "Toutes les données ont été supprimées. La page va se rafraîchir.",
+      });
 
-    setOperationMessage({
-      type: result.success ? 'success' : 'error',
-      text: result.message,
-    });
+      // Rafraîchir la page après reset
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      setOperationMessage({
+        type: "error",
+        text: `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
+      });
+    }
 
-    setConfirmPassword('');
     setIsResetDialogOpen(false);
     setIsResetting(false);
   };
@@ -213,7 +246,7 @@ export function AdminPage() {
                 )}
               </div>
               <Button type="submit" className="w-full" disabled={isLoggingIn}>
-                {isLoggingIn ? 'Vérification...' : 'Se connecter'}
+                {isLoggingIn ? "Vérification..." : "Se connecter"}
               </Button>
             </form>
           </CardContent>
@@ -225,12 +258,21 @@ export function AdminPage() {
   // Affichage du panneau d'administration
   return (
     <div className="space-y-6">
+      {/* Input file caché pour l'import web */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".json"
+        className="hidden"
+      />
+
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Administration</h1>
           <p className="text-muted-foreground">
-            Gestion avancée de la base de données
+            Gestion des données de l'application
           </p>
         </div>
         <Button variant="outline" onClick={logout}>
@@ -243,30 +285,34 @@ export function AdminPage() {
       {operationMessage && (
         <div
           className={`p-4 rounded-lg border ${
-            operationMessage.type === 'success'
-              ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200'
-              : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200'
+            operationMessage.type === "success"
+              ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200"
+              : "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200"
           }`}
         >
           {operationMessage.text}
         </div>
       )}
 
-      {/* Info base de données */}
+      {/* Info stockage */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Informations de la base de données
+            Stockage des données
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-sm">
-            <span className="text-muted-foreground">Emplacement: </span>
-            <code className="bg-muted px-2 py-1 rounded text-xs break-all">
-              {dbPath || 'Chargement...'}
+            <span className="text-muted-foreground">Type: </span>
+            <code className="bg-muted px-2 py-1 rounded text-xs">
+              localStorage (navigateur)
             </code>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Les données sont stockées localement dans votre navigateur. Utilisez
+            l'export pour créer une sauvegarde.
+          </p>
         </CardContent>
       </Card>
 
@@ -280,7 +326,7 @@ export function AdminPage() {
               Exporter
             </CardTitle>
             <CardDescription>
-              Téléchargez une copie de sauvegarde de la base de données.
+              Téléchargez une sauvegarde de vos données au format JSON.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -289,7 +335,8 @@ export function AdminPage() {
               disabled={isExporting}
               className="w-full"
             >
-              {isExporting ? 'Export en cours...' : 'Exporter la base de données'}
+              <FileJson className="h-4 w-4 mr-2" />
+              {isExporting ? "Export en cours..." : "Exporter (JSON)"}
             </Button>
           </CardContent>
         </Card>
@@ -302,20 +349,18 @@ export function AdminPage() {
               Importer
             </CardTitle>
             <CardDescription>
-              Remplacez la base de données actuelle par une sauvegarde.
+              Restaurez vos données depuis un fichier JSON de sauvegarde.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button
               variant="secondary"
-              onClick={() => {
-                setConfirmPassword('');
-                setIsImportDialogOpen(true);
-              }}
+              onClick={handleImportClick}
               disabled={isImporting}
               className="w-full"
             >
-              {isImporting ? 'Import en cours...' : 'Importer une base de données'}
+              <FileJson className="h-4 w-4 mr-2" />
+              {isImporting ? "Import en cours..." : "Importer (JSON)"}
             </Button>
           </CardContent>
         </Card>
@@ -334,14 +379,11 @@ export function AdminPage() {
           <CardContent>
             <Button
               variant="destructive"
-              onClick={() => {
-                setConfirmPassword('');
-                setIsResetDialogOpen(true);
-              }}
+              onClick={() => setIsResetDialogOpen(true)}
               disabled={isResetting}
               className="w-full"
             >
-              {isResetting ? 'Réinitialisation...' : 'Réinitialiser la base de données'}
+              {isResetting ? "Réinitialisation..." : "Réinitialiser"}
             </Button>
           </CardContent>
         </Card>
@@ -358,45 +400,11 @@ export function AdminPage() {
           </p>
           <p className="text-sm text-amber-700 dark:text-amber-300">
             Les opérations d'import et de réinitialisation sont irréversibles.
-            Assurez-vous d'avoir une sauvegarde avant de procéder.
-            L'application devra être redémarrée après ces opérations.
+            Assurez-vous d'avoir une sauvegarde avant de procéder. La page sera
+            rafraîchie après ces opérations.
           </p>
         </div>
       </div>
-
-      {/* Dialog de confirmation d'import */}
-      <AlertDialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer l'import</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action va remplacer toutes les données actuelles par celles
-              du fichier importé. Cette opération est irréversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-4">
-            <Label htmlFor="confirm-import-password">
-              Confirmez votre mot de passe administrateur
-            </Label>
-            <Input
-              id="confirm-import-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Mot de passe administrateur"
-              className="mt-2"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmPassword('')}>
-              Annuler
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleImport} disabled={isImporting}>
-              {isImporting ? 'Import...' : 'Confirmer l\'import'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Dialog de confirmation de réinitialisation */}
       <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
@@ -411,29 +419,14 @@ export function AdminPage() {
               opération est IRRÉVERSIBLE.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-4">
-            <Label htmlFor="confirm-reset-password">
-              Confirmez votre mot de passe administrateur
-            </Label>
-            <Input
-              id="confirm-reset-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Mot de passe administrateur"
-              className="mt-2"
-            />
-          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmPassword('')}>
-              Annuler
-            </AlertDialogCancel>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleReset}
               disabled={isResetting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isResetting ? 'Suppression...' : 'Supprimer toutes les données'}
+              {isResetting ? "Suppression..." : "Supprimer toutes les données"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

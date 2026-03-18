@@ -32,6 +32,7 @@ export interface UpdateStudentInput {
   schoolId?: number;
   gender?: string;
   birthDate?: Date;
+  isAbsent?: boolean; // Absent = true, Présent = false (défaut)
 }
 
 /**
@@ -259,6 +260,7 @@ export async function updateStudent(
       gender: data.gender,
       birthDate: data.birthDate,
       schoolId: data.schoolId,
+      isAbsent: data.isAbsent,
     },
   });
 }

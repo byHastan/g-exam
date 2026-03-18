@@ -37,6 +37,10 @@ export interface ExamInfo {
   year: number;
   passingGrade: number;
   maxGrade: number;
+  /** Nombre de candidats présents (optionnel) */
+  totalPresent?: number;
+  /** Nombre de candidats absents (optionnel) */
+  totalAbsent?: number;
 }
 
 /**
@@ -51,7 +55,7 @@ export interface ExportStudent {
   scores: Record<string, number | null>; // subjectId -> note
   average: number | null;
   rank: number | null;
-  status: "admitted" | "failed" | "pending";
+  status: "admitted" | "failed" | "pending" | "absent";
 }
 
 /**
@@ -113,8 +117,31 @@ export interface ExportRoom {
 export interface ExportOptions {
   includeScores?: boolean; // Inclure les notes détaillées
   includeRank?: boolean; // Inclure le classement
-  filterStatus?: "all" | "admitted" | "failed";
+  filterStatus?: "all" | "admitted" | "failed" | "absent";
   sortBy?: "rank" | "name" | "school";
+}
+
+/**
+ * Données pour le procès-verbal de l'examen
+ */
+export interface ProcesVerbalData {
+  examName: string;
+  examYear: number;
+  centreName?: string; // Ex: "CENTRE E COMPOSITION EPL. Etoile Polaire"
+  /** Nombre d'inscrits */
+  totalInscrits: number;
+  /** Nombre de présents */
+  totalPresent: number;
+  /** Nombre d'absents */
+  totalAbsent: number;
+  /** Nombre d'admis */
+  admitted: number;
+  /** Nombre d'ajournés */
+  failed: number;
+  /** Taux de réussite (0-100) */
+  successRate: number;
+  /** Taux d'échec (0-100) */
+  failureRate: number;
 }
 
 // ============================================
@@ -143,7 +170,9 @@ function formatScore(score: number | null | undefined): string {
 /**
  * Obtient le statut d'admission en français
  */
-function getStatusLabel(status: "admitted" | "failed" | "pending"): string {
+function getStatusLabel(
+  status: "admitted" | "failed" | "pending" | "absent",
+): string {
   switch (status) {
     case "admitted":
       return "Admis";
@@ -151,6 +180,8 @@ function getStatusLabel(status: "admitted" | "failed" | "pending"): string {
       return "Ajourné";
     case "pending":
       return "En attente";
+    case "absent":
+      return "Absent";
   }
 }
 
@@ -253,14 +284,23 @@ function createResultsWorkbook(
   }
 
   // Créer la feuille avec en-tête d'examen
-  const wsData = [
+  const wsData: (string | number)[][] = [
     [`${examInfo.name} - Session ${examInfo.year}`],
     [`Date d'export: ${formatDate()}`],
     [`Seuil de réussite: ${examInfo.passingGrade}/${examInfo.maxGrade}`],
-    [],
-    headers,
-    ...rows,
   ];
+
+  // Ajouter les compteurs présents/absents si disponibles
+  if (
+    examInfo.totalPresent !== undefined ||
+    examInfo.totalAbsent !== undefined
+  ) {
+    wsData.push([
+      `Présents: ${examInfo.totalPresent ?? 0} | Absents: ${examInfo.totalAbsent ?? 0}`,
+    ]);
+  }
+
+  wsData.push([], headers, ...rows);
 
   const worksheet = XLSX.utils.aoa_to_sheet(wsData);
 
@@ -597,7 +637,21 @@ function addPdfHeader(doc: jsPDF, examInfo: ExamInfo, title: string): number {
     44,
   );
 
-  return 50; // Y position après l'en-tête
+  // Ajouter les compteurs présents/absents si disponibles
+  let yPos = 50;
+  if (
+    examInfo.totalPresent !== undefined ||
+    examInfo.totalAbsent !== undefined
+  ) {
+    doc.text(
+      `Présents: ${examInfo.totalPresent ?? 0} | Absents: ${examInfo.totalAbsent ?? 0}`,
+      14,
+      50,
+    );
+    yPos = 56;
+  }
+
+  return yPos; // Y position après l'en-tête
 }
 
 /**
@@ -718,6 +772,8 @@ function createResultsPdf(
           data.cell.styles.fontStyle = "bold";
         } else if (status === "Ajourné") {
           data.cell.styles.textColor = [239, 68, 68]; // red-500
+        } else if (status === "Absent") {
+          data.cell.styles.textColor = [234, 88, 12]; // orange-600
         }
       }
     },
@@ -874,6 +930,8 @@ function createSchoolResultsPdf(
           data.cell.styles.fontStyle = "bold";
         } else if (status === "Ajourné") {
           data.cell.styles.textColor = [239, 68, 68];
+        } else if (status === "Absent") {
+          data.cell.styles.textColor = [234, 88, 12];
         }
       }
     },
@@ -1018,6 +1076,109 @@ function createSubjectStatsPdf(
     alternateRowStyles: {
       fillColor: [245, 247, 250],
     },
+  });
+
+  return doc;
+}
+
+/**
+ * Crée un PDF du procès-verbal de l'examen
+ * Reproduit fidèlement le modèle Proces_verbal.md
+ */
+function createProcesVerbalPdf(data: ProcesVerbalData): jsPDF {
+  const doc = createPdfDocument("portrait");
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // Formater la date du jour
+  const now = new Date();
+  const joursSemaine = [
+    "Dimanche",
+    "Lundi",
+    "Mardi",
+    "Mercredi",
+    "Jeudi",
+    "Vendredi",
+    "Samedi",
+  ];
+  const mois = [
+    "JANVIER",
+    "FEVRIER",
+    "MARS",
+    "AVRIL",
+    "MAI",
+    "JUIN",
+    "JUILLET",
+    "AOUT",
+    "SEPTEMBRE",
+    "OCTOBRE",
+    "NOVEMBRE",
+    "DECEMBRE",
+  ];
+  const jourSemaine = joursSemaine[now.getDay()];
+  const jour = now.getDate();
+  const moisNom = mois[now.getMonth()];
+  const annee = now.getFullYear();
+  const dateFormatted = `${jourSemaine} ${jour} ${moisNom} ${annee}`;
+
+  // Titre principal (centré, gras)
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text(
+    `PROCES VERBAL DE L'EXAMEN ${data.examName.toUpperCase()} N°1`,
+    pageWidth / 2,
+    30,
+    { align: "center" },
+  );
+
+  // Ligne vide puis centre de composition
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  const centreLine = data.centreName
+    ? `CENTRE DE COMPOSITION ${data.centreName}`
+    : "CENTRE DE COMPOSITION";
+  doc.text(centreLine, pageWidth / 2, 45, { align: "center" });
+
+  // Paragraphe de contexte avec pointillés
+  doc.setFontSize(10);
+  const contextText =
+    `Ce ${dateFormatted}, le Groupe pédagogique CEP BLANC SECTORIEL organise son premier Examen blanc. ` +
+    `Celui-ci a démarré à …………… par l'épreuve de………………………….. . ` +
+    `Par la suite, nous avons poursuivi avec l'épreuve…………………………... ……….. ` +
+    `Aussi, à…………..…, nous avons eu une pause de…….…………………. ` +
+    `Pour enfin terminer l'Examen blanc par l'épreuve d'……….…………..qui s'acheva à……….… .`;
+
+  doc.text(contextText, 14, 60, {
+    maxWidth: pageWidth - 28,
+    lineHeightFactor: 1.5,
+  });
+
+  // "Nous avons enregistré X candidats, dont :"
+  doc.text(
+    `Nous avons enregistré ${data.totalInscrits} candidats, dont :`,
+    14,
+    95,
+  );
+
+  // Liste à puces
+  const bulletY = 105;
+  const lineHeight = 7;
+  const bulletLines = [
+    `• Inscrits : ${data.totalInscrits} élèves.`,
+    `• Présents : ${data.totalPresent} élèves.`,
+    `• Absents : ${data.totalAbsent} élèves.`,
+    `• Admis : ${data.admitted} élèves.`,
+    `• Ajournés : ${data.failed} élèves.`,
+  ];
+
+  bulletLines.forEach((line, i) => {
+    doc.text(line, 14, bulletY + i * lineHeight);
+  });
+
+  // Signature en bas à droite
+  doc.setFontSize(10);
+  doc.text("La présidente du centre:", pageWidth - 14, pageHeight - 40, {
+    align: "right",
   });
 
   return doc;
@@ -1184,6 +1345,23 @@ export async function exportSubjectStatsToPdf(
 ): Promise<void> {
   const doc = createSubjectStatsPdf(examInfo, subjectStats);
   const filename = `stats_epreuves_${examInfo.year}.pdf`;
+
+  if (isTauri()) {
+    await downloadPdfTauri(doc, filename);
+  } else {
+    downloadPdfWeb(doc, filename);
+  }
+}
+
+/**
+ * Exporte le procès-verbal de l'examen en PDF
+ * Contient : inscrits, présents, absents, admis, ajournés, taux de réussite, taux d'échec
+ */
+export async function exportProcesVerbalToPdf(
+  data: ProcesVerbalData,
+): Promise<void> {
+  const doc = createProcesVerbalPdf(data);
+  const filename = `proces_verbal_${data.examName.replace(/\s+/g, "_")}_${data.examYear}.pdf`;
 
   if (isTauri()) {
     await downloadPdfTauri(doc, filename);

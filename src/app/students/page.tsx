@@ -37,6 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -89,6 +90,7 @@ export function StudentsPage() {
   const [formLastName, setFormLastName] = useState('');
   const [formSchoolId, setFormSchoolId] = useState<string>('');
   const [formGender, setFormGender] = useState<string>('');
+  const [formIsAbsent, setFormIsAbsent] = useState(false);
 
   // Filtrage
   const filteredStudents = students.filter((s) => {
@@ -128,6 +130,7 @@ export function StudentsPage() {
     setFormLastName(student.lastName);
     setFormSchoolId(String(student.schoolId));
     setFormGender(student.gender || '');
+    setFormIsAbsent(student.isAbsent);
     setIsEditDialogOpen(true);
   };
 
@@ -155,6 +158,7 @@ export function StudentsPage() {
         lastName: formLastName,
         schoolId: parseInt(formSchoolId),
         gender: formGender || undefined,
+        isAbsent: formIsAbsent,
       });
       setIsEditDialogOpen(false);
       setSelectedStudent(null);
@@ -344,9 +348,14 @@ export function StudentsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredStudents.map((student) => (
-                    <TableRow key={student.id}>
+                    <TableRow key={student.id} className={student.isAbsent ? 'opacity-60' : ''}>
                       <TableCell>
-                        <Badge variant="outline">{student.candidateNumber}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{student.candidateNumber}</Badge>
+                          {student.isAbsent && (
+                            <Badge variant="destructive" className="text-xs">Absent</Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-medium">
                         {student.lastName}
@@ -538,6 +547,16 @@ export function StudentsPage() {
                   <SelectItem value="F">Féminin</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox
+                id="edit-absent"
+                checked={formIsAbsent}
+                onCheckedChange={(checked) => setFormIsAbsent(checked === true)}
+              />
+              <Label htmlFor="edit-absent" className="text-sm font-normal cursor-pointer">
+                Marquer comme absent
+              </Label>
             </div>
           </div>
           <DialogFooter>

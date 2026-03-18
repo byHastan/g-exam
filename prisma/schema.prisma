@@ -49,6 +49,7 @@ model Student {
   lastName        String
   gender          String? // Optionnel (M/F)
   birthDate       DateTime? // Optionnel
+  isAbsent        Boolean   @default(false) // Absent = true, Présent = false (défaut)
   createdAt       DateTime  @default(now())
 
   // Foreign keys

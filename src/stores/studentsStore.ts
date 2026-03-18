@@ -17,6 +17,7 @@ export interface Student {
   lastName: string;
   gender: string | null;
   birthDate: Date | null;
+  isAbsent: boolean; // Absent = true, Présent = false (défaut)
   schoolId: number;
   createdAt: Date;
 }
@@ -27,6 +28,7 @@ export interface CreateStudentInput {
   schoolId: number;
   gender?: string;
   birthDate?: Date;
+  isAbsent?: boolean; // Absent = true, Présent = false (défaut)
 }
 
 interface StudentsState {
@@ -91,6 +93,7 @@ export const useStudentsStore = create<StudentsState>()(
           lastName: data.lastName.trim(),
           gender: data.gender || null,
           birthDate: data.birthDate || null,
+          isAbsent: data.isAbsent || false,
           schoolId: data.schoolId,
           createdAt: new Date(),
         };
@@ -116,6 +119,7 @@ export const useStudentsStore = create<StudentsState>()(
           lastName: data.lastName.trim(),
           gender: data.gender || null,
           birthDate: data.birthDate || null,
+          isAbsent: data.isAbsent || false,
           schoolId: data.schoolId,
           createdAt: new Date(),
         }));
@@ -143,6 +147,7 @@ export const useStudentsStore = create<StudentsState>()(
                     lastName: data.lastName?.trim() ?? student.lastName,
                     gender: data.gender ?? student.gender,
                     birthDate: data.birthDate ?? student.birthDate,
+                    isAbsent: data.isAbsent ?? student.isAbsent,
                     schoolId: data.schoolId ?? student.schoolId,
                   }
                 : student,
@@ -251,11 +256,12 @@ export const useStudentsStore = create<StudentsState>()(
           });
           candidateSequence = Math.max(1, ...sequences) + 1;
 
-          // Convertir les dates
+          // Convertir les dates et assurer la compatibilité avec les anciennes données
           state.students = state.students.map((s) => ({
             ...s,
             createdAt: new Date(s.createdAt),
             birthDate: s.birthDate ? new Date(s.birthDate) : null,
+            isAbsent: s.isAbsent ?? false, // Rétrocompatibilité: absent = false par défaut
           }));
         }
       },
