@@ -46,6 +46,7 @@ import {
   exportSchoolStatsToPdf,
   exportSubjectStatsToExcel,
   exportSubjectStatsToPdf,
+  type DocumentExportConfig,
   type ExamInfo,
   type ExportOptions,
   type ExportStudent,
@@ -60,6 +61,7 @@ import {
   useStudentsStore,
   useSubjectsStore,
 } from "@/stores";
+import { useSettingsStore } from "@/stores/settingsStore";
 import {
   BookOpen,
   Building2,
@@ -97,6 +99,23 @@ export function ExportsPage() {
   const { schools } = useSchoolsStore();
   const { examName, examYear, passingGrade, maxGrade } = useExamStore();
   const { calculateAverage, scores } = useScoresStore();
+  const { documentConfig } = useSettingsStore();
+
+  // Configuration document pour les exports PDF
+  const docExportConfig: DocumentExportConfig = useMemo(() => ({
+    headerTitle: documentConfig.headerTitle,
+    headerSubtitle: documentConfig.headerSubtitle,
+    institutionName: documentConfig.institutionName,
+    logoEnabled: documentConfig.logoEnabled,
+    footerText: documentConfig.footerText,
+    showPageNumbers: documentConfig.showPageNumbers,
+    showDate: documentConfig.showDate,
+    signatureLeft: documentConfig.signatureLeft,
+    signatureRight: documentConfig.signatureRight,
+    signatureCenter: documentConfig.signatureCenter,
+    orientation: documentConfig.orientation,
+    fontSize: documentConfig.fontSize,
+  }), [documentConfig]);
 
   // État d'export
   const [exportState, setExportState] = useState<ExportState>({
@@ -356,7 +375,7 @@ export function ExportsPage() {
   const handleExportProcesVerbal = async () => {
     startExport("proces-verbal");
     try {
-      await exportProcesVerbalToPdf(procesVerbalData);
+      await exportProcesVerbalToPdf(procesVerbalData, docExportConfig);
     } finally {
       endExport();
     }
@@ -379,6 +398,7 @@ export function ExportsPage() {
           exportStudents,
           exportSubjects,
           exportOptions,
+          docExportConfig,
         );
       }
     } finally {
@@ -410,6 +430,7 @@ export function ExportsPage() {
           exportSubjects,
           school.name,
           exportOptions,
+          docExportConfig,
         );
       }
     } finally {
@@ -424,7 +445,7 @@ export function ExportsPage() {
       if (format === "excel") {
         await exportSchoolStatsToExcel(examInfo, schoolStats);
       } else {
-        await exportSchoolStatsToPdf(examInfo, schoolStats);
+        await exportSchoolStatsToPdf(examInfo, schoolStats, docExportConfig);
       }
     } finally {
       endExport();
@@ -438,7 +459,7 @@ export function ExportsPage() {
       if (format === "excel") {
         await exportSubjectStatsToExcel(examInfo, subjectStats);
       } else {
-        await exportSubjectStatsToPdf(examInfo, subjectStats);
+        await exportSubjectStatsToPdf(examInfo, subjectStats, docExportConfig);
       }
     } finally {
       endExport();

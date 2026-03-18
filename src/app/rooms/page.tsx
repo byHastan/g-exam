@@ -56,10 +56,12 @@ import {
   exportRoomToPdf,
   printAllRooms,
   printRoom,
+  type DocumentExportConfig,
   type ExamInfo,
   type ExportRoom,
 } from "@/lib/export";
 import { useExamStore, useSchoolsStore, useStudentsStore } from "@/stores";
+import { useSettingsStore } from "@/stores/settingsStore";
 import {
   ChevronDown,
   DoorOpen,
@@ -77,6 +79,23 @@ export function RoomsPage() {
   const { students, assignCandidateNumbers } = useStudentsStore();
   const { schools } = useSchoolsStore();
   const { examName, examYear, passingGrade, maxGrade } = useExamStore();
+  const { documentConfig } = useSettingsStore();
+
+  // Configuration document pour les exports PDF
+  const docExportConfig: DocumentExportConfig = useMemo(() => ({
+    headerTitle: documentConfig.headerTitle,
+    headerSubtitle: documentConfig.headerSubtitle,
+    institutionName: documentConfig.institutionName,
+    logoEnabled: documentConfig.logoEnabled,
+    footerText: documentConfig.footerText,
+    showPageNumbers: documentConfig.showPageNumbers,
+    showDate: documentConfig.showDate,
+    signatureLeft: documentConfig.signatureLeft,
+    signatureRight: documentConfig.signatureRight,
+    signatureCenter: documentConfig.signatureCenter,
+    orientation: documentConfig.orientation,
+    fontSize: documentConfig.fontSize,
+  }), [documentConfig]);
 
   // États
   const [roomCount, setRoomCount] = useState(5);
@@ -210,19 +229,19 @@ export function RoomsPage() {
   };
 
   const handleExportRoomPdf = async (room: RoomAssignment) => {
-    await exportRoomToPdf(examInfo, getExportRoom(room));
+    await exportRoomToPdf(examInfo, getExportRoom(room), docExportConfig);
   };
 
   const handleExportAllPdf = async () => {
-    await exportAllRoomsToPdf(examInfo, exportRooms);
+    await exportAllRoomsToPdf(examInfo, exportRooms, docExportConfig);
   };
 
   const handlePrintRoom = async (room: RoomAssignment) => {
-    await printRoom(examInfo, getExportRoom(room));
+    await printRoom(examInfo, getExportRoom(room), docExportConfig);
   };
 
   const handlePrintAll = async () => {
-    await printAllRooms(examInfo, exportRooms);
+    await printAllRooms(examInfo, exportRooms, docExportConfig);
   };
 
   return (

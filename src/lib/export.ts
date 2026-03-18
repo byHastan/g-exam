@@ -122,6 +122,24 @@ export interface ExportOptions {
 }
 
 /**
+ * Configuration de personnalisation des documents (provient de settingsStore)
+ */
+export interface DocumentExportConfig {
+  headerTitle?: string;
+  headerSubtitle?: string;
+  institutionName?: string;
+  logoEnabled?: boolean;
+  footerText?: string;
+  showPageNumbers?: boolean;
+  showDate?: boolean;
+  signatureLeft?: string;
+  signatureRight?: string;
+  signatureCenter?: string;
+  orientation?: "portrait" | "landscape";
+  fontSize?: "small" | "medium" | "large";
+}
+
+/**
  * Données pour le procès-verbal de l'examen
  */
 export interface ProcesVerbalData {
@@ -602,43 +620,143 @@ function createSubjectStatsWorkbook(
  */
 function createPdfDocument(
   orientation: "portrait" | "landscape" = "portrait",
+  config?: DocumentExportConfig,
 ): jsPDF {
+  const finalOrientation = config?.orientation || orientation;
   return new jsPDF({
-    orientation,
+    orientation: finalOrientation,
     unit: "mm",
     format: "a4",
   });
 }
 
+/** Résout la taille de police selon la config */
+function resolveFontSize(config?: DocumentExportConfig): { table: number; header: number; subheader: number; body: number } {
+  switch (config?.fontSize) {
+    case "small":  return { table: 7, header: 14, subheader: 10, body: 8 };
+    case "large":  return { table: 10, header: 18, subheader: 13, body: 11 };
+    default:       return { table: 8, header: 16, subheader: 12, body: 10 };
+  }
+}
+
+/**
+ * Ajoute les signatures et le pied de page au document PDF
+ */
+function addPdfFooter(doc: jsPDF, config?: DocumentExportConfig): void {
+  if (!config) return;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const totalPages = doc.getNumberOfPages();
+
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+
+    // Signatures (30mm au-dessus du bas)
+    const sigY = pageHeight - 35;
+    const hasAnySig = config.signatureLeft || config.signatureCenter || config.signatureRight;
+
+    if (hasAnySig) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+
+      if (config.signatureLeft) {
+        doc.text(config.signatureLeft, 20, sigY);
+        doc.line(15, sigY + 15, 65, sigY + 15); // Ligne de signature
+      }
+      if (config.signatureCenter) {
+        doc.text(config.signatureCenter, pageWidth / 2, sigY, { align: "center" });
+        doc.line(pageWidth / 2 - 25, sigY + 15, pageWidth / 2 + 25, sigY + 15);
+      }
+      if (config.signatureRight) {
+        doc.text(config.signatureRight, pageWidth - 20, sigY, { align: "right" });
+        doc.line(pageWidth - 65, sigY + 15, pageWidth - 15, sigY + 15);
+      }
+    }
+
+    // Pied de page (10mm du bas)
+    const footerY = pageHeight - 10;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(128, 128, 128);
+
+    if (config.footerText) {
+      doc.text(config.footerText, 14, footerY);
+    }
+
+    const rightParts: string[] = [];
+    if (config.showDate) {
+      rightParts.push(formatDate());
+    }
+    if (config.showPageNumbers) {
+      rightParts.push(`Page ${i}/${totalPages}`);
+    }
+    if (rightParts.length > 0) {
+      doc.text(rightParts.join("  |  "), pageWidth - 14, footerY, { align: "right" });
+    }
+
+    doc.setTextColor(0, 0, 0); // Reset
+  }
+}
+
 /**
  * Ajoute l'en-tête d'examen au document PDF
  */
-function addPdfHeader(doc: jsPDF, examInfo: ExamInfo, title: string): number {
+function addPdfHeader(doc: jsPDF, examInfo: ExamInfo, title: string, config?: DocumentExportConfig): number {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const fs = resolveFontSize(config);
+  let yPos = 15;
+
+  // En-tête institutionnel (depuis les paramètres)
+  if (config?.headerTitle) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.headerTitle.toUpperCase(), pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.headerSubtitle) {
+    doc.setFontSize(fs.body - 1);
+    doc.setFont("helvetica", "normal");
+    doc.text(config.headerSubtitle, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.institutionName) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.institutionName, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+
+  if (config?.headerTitle || config?.headerSubtitle || config?.institutionName) {
+    yPos += 3; // Espace après en-tête institutionnel
+  }
 
   // Titre de l'examen
-  doc.setFontSize(16);
+  doc.setFontSize(fs.header);
   doc.setFont("helvetica", "bold");
-  doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, 20, {
+  doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, yPos, {
     align: "center",
   });
+  yPos += 8;
 
   // Sous-titre
-  doc.setFontSize(12);
-  doc.text(title, pageWidth / 2, 28, { align: "center" });
+  doc.setFontSize(fs.subheader);
+  doc.text(title, pageWidth / 2, yPos, { align: "center" });
+  yPos += 10;
 
   // Informations
-  doc.setFontSize(10);
+  doc.setFontSize(fs.body);
   doc.setFont("helvetica", "normal");
-  doc.text(`Date d'export: ${formatDate()}`, 14, 38);
+  doc.text(`Date d'export: ${formatDate()}`, 14, yPos);
+  yPos += 6;
   doc.text(
     `Seuil de réussite: ${examInfo.passingGrade}/${examInfo.maxGrade}`,
     14,
-    44,
+    yPos,
   );
+  yPos += 6;
 
   // Ajouter les compteurs présents/absents si disponibles
-  let yPos = 50;
   if (
     examInfo.totalPresent !== undefined ||
     examInfo.totalAbsent !== undefined
@@ -646,9 +764,9 @@ function addPdfHeader(doc: jsPDF, examInfo: ExamInfo, title: string): number {
     doc.text(
       `Présents: ${examInfo.totalPresent ?? 0} | Absents: ${examInfo.totalAbsent ?? 0}`,
       14,
-      50,
+      yPos,
     );
-    yPos = 56;
+    yPos += 6;
   }
 
   return yPos; // Y position après l'en-tête
@@ -662,14 +780,16 @@ function createResultsPdf(
   students: ExportStudent[],
   subjects: Array<{ id: string; name: string; coefficient: number | null }>,
   options: ExportOptions = {},
+  config?: DocumentExportConfig,
 ): jsPDF {
   // Utiliser l'orientation paysage si beaucoup de colonnes
   const useScores = options.includeScores && subjects.length > 0;
   const orientation =
     useScores && subjects.length > 4 ? "landscape" : "portrait";
+  const fs = resolveFontSize(config);
 
-  const doc = createPdfDocument(orientation);
-  const startY = addPdfHeader(doc, examInfo, "Procès-verbal de délibération");
+  const doc = createPdfDocument(orientation, config);
+  const startY = addPdfHeader(doc, examInfo, "Procès-verbal de délibération", config);
 
   // Préparer les colonnes
   const columns: string[] = ["N°", "Nom", "Prénom", "Établissement"];
@@ -749,7 +869,7 @@ function createResultsPdf(
     head: [columns],
     body: rows,
     styles: {
-      fontSize: 8,
+      fontSize: fs.table,
       cellPadding: 2,
     },
     headStyles: {
@@ -788,13 +908,15 @@ function createResultsPdf(
   ).length;
   const failed = filteredStudents.filter((s) => s.status === "failed").length;
 
-  doc.setFontSize(10);
+  doc.setFontSize(fs.body);
   doc.setFont("helvetica", "bold");
   doc.text(
     `Total: ${filteredStudents.length} candidats | Admis: ${admitted} | Ajournés: ${failed}`,
     14,
     finalY,
   );
+
+  addPdfFooter(doc, config);
 
   return doc;
 }
@@ -808,35 +930,65 @@ function createSchoolResultsPdf(
   subjects: Array<{ id: string; name: string; coefficient: number | null }>,
   schoolName: string,
   options: ExportOptions = {},
+  config?: DocumentExportConfig,
 ): jsPDF {
   // Utiliser l'orientation paysage si beaucoup de colonnes
   const useScores = options.includeScores && subjects.length > 0;
   const orientation =
     useScores && subjects.length > 4 ? "landscape" : "portrait";
+  const fs = resolveFontSize(config);
 
-  const doc = createPdfDocument(orientation);
+  const doc = createPdfDocument(orientation, config);
   const pageWidth = doc.internal.pageSize.getWidth();
+  let yPos = 15;
+
+  // En-tête institutionnel (depuis les paramètres)
+  if (config?.headerTitle) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.headerTitle.toUpperCase(), pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.headerSubtitle) {
+    doc.setFontSize(fs.body - 1);
+    doc.setFont("helvetica", "normal");
+    doc.text(config.headerSubtitle, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.institutionName) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.institutionName, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.headerTitle || config?.headerSubtitle || config?.institutionName) {
+    yPos += 3;
+  }
 
   // En-tête personnalisé pour l'établissement
-  doc.setFontSize(16);
+  doc.setFontSize(fs.header);
   doc.setFont("helvetica", "bold");
-  doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, 20, {
+  doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, yPos, {
     align: "center",
   });
+  yPos += 8;
 
-  doc.setFontSize(14);
-  doc.text(schoolName, pageWidth / 2, 28, { align: "center" });
+  doc.setFontSize(fs.subheader + 2);
+  doc.text(schoolName, pageWidth / 2, yPos, { align: "center" });
+  yPos += 10;
 
-  doc.setFontSize(10);
+  doc.setFontSize(fs.body);
   doc.setFont("helvetica", "normal");
-  doc.text(`Date d'export: ${formatDate()}`, 14, 38);
+  doc.text(`Date d'export: ${formatDate()}`, 14, yPos);
+  yPos += 6;
   doc.text(
     `Seuil de réussite: ${examInfo.passingGrade}/${examInfo.maxGrade}`,
     14,
-    44,
+    yPos,
   );
+  yPos += 6;
 
-  const startY = 50;
+  const startY = yPos;
 
   // Préparer les colonnes (sans établissement)
   const columns: string[] = ["N°", "Nom", "Prénom"];
@@ -908,7 +1060,7 @@ function createSchoolResultsPdf(
     head: [columns],
     body: rows,
     styles: {
-      fontSize: 8,
+      fontSize: fs.table,
       cellPadding: 2,
     },
     headStyles: {
@@ -950,13 +1102,15 @@ function createSchoolResultsPdf(
       ? Math.round((admitted / filteredStudents.length) * 100)
       : 0;
 
-  doc.setFontSize(10);
+  doc.setFontSize(fs.body);
   doc.setFont("helvetica", "bold");
   doc.text(
     `Total: ${filteredStudents.length} candidats | Admis: ${admitted} | Ajournés: ${failed} | Taux de réussite: ${successRate}%`,
     14,
     finalY,
   );
+
+  addPdfFooter(doc, config);
 
   return doc;
 }
@@ -967,9 +1121,11 @@ function createSchoolResultsPdf(
 function createSchoolStatsPdf(
   examInfo: ExamInfo,
   schoolStats: SchoolStats[],
+  config?: DocumentExportConfig,
 ): jsPDF {
-  const doc = createPdfDocument("portrait");
-  const startY = addPdfHeader(doc, examInfo, "Statistiques par établissement");
+  const doc = createPdfDocument("portrait", config);
+  const startY = addPdfHeader(doc, examInfo, "Statistiques par établissement", config);
+  const fs = resolveFontSize(config);
 
   const sortedStats = [...schoolStats].sort(
     (a, b) => b.successRate - a.successRate,
@@ -1016,7 +1172,7 @@ function createSchoolStatsPdf(
     head: [columns],
     body: rows,
     styles: {
-      fontSize: 10,
+      fontSize: fs.body,
       cellPadding: 3,
     },
     headStyles: {
@@ -1036,6 +1192,8 @@ function createSchoolStatsPdf(
     },
   });
 
+  addPdfFooter(doc, config);
+
   return doc;
 }
 
@@ -1045,9 +1203,11 @@ function createSchoolStatsPdf(
 function createSubjectStatsPdf(
   examInfo: ExamInfo,
   subjectStats: SubjectStats[],
+  config?: DocumentExportConfig,
 ): jsPDF {
-  const doc = createPdfDocument("portrait");
-  const startY = addPdfHeader(doc, examInfo, "Statistiques par épreuve");
+  const doc = createPdfDocument("portrait", config);
+  const startY = addPdfHeader(doc, examInfo, "Statistiques par épreuve", config);
+  const fs = resolveFontSize(config);
 
   const columns = ["Épreuve", "Coefficient", "Copies", "Moyenne", "Min", "Max"];
 
@@ -1065,7 +1225,7 @@ function createSubjectStatsPdf(
     head: [columns],
     body: rows,
     styles: {
-      fontSize: 10,
+      fontSize: fs.body,
       cellPadding: 3,
     },
     headStyles: {
@@ -1078,6 +1238,8 @@ function createSubjectStatsPdf(
     },
   });
 
+  addPdfFooter(doc, config);
+
   return doc;
 }
 
@@ -1085,10 +1247,11 @@ function createSubjectStatsPdf(
  * Crée un PDF du procès-verbal de l'examen
  * Reproduit fidèlement le modèle Proces_verbal.md
  */
-function createProcesVerbalPdf(data: ProcesVerbalData): jsPDF {
-  const doc = createPdfDocument("portrait");
+function createProcesVerbalPdf(data: ProcesVerbalData, config?: DocumentExportConfig): jsPDF {
+  const doc = createPdfDocument("portrait", config);
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const fs = resolveFontSize(config);
 
   // Formater la date du jour
   const now = new Date();
@@ -1121,47 +1284,76 @@ function createProcesVerbalPdf(data: ProcesVerbalData): jsPDF {
   const annee = now.getFullYear();
   const dateFormatted = `${jourSemaine} ${jour} ${moisNom} ${annee}`;
 
+  let yPos = 20;
+
+  // En-tête institutionnel (depuis les paramètres)
+  if (config?.headerTitle) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.headerTitle.toUpperCase(), pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.headerSubtitle) {
+    doc.setFontSize(fs.body - 1);
+    doc.setFont("helvetica", "normal");
+    doc.text(config.headerSubtitle, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.institutionName) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.institutionName, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.headerTitle || config?.headerSubtitle || config?.institutionName) {
+    yPos += 5;
+  }
+
   // Titre principal (centré, gras)
-  doc.setFontSize(14);
+  doc.setFontSize(fs.header - 2);
   doc.setFont("helvetica", "bold");
   doc.text(
     `PROCES VERBAL DE L'EXAMEN ${data.examName.toUpperCase()} N°1`,
     pageWidth / 2,
-    30,
+    yPos,
     { align: "center" },
   );
+  yPos += 15;
 
   // Ligne vide puis centre de composition
-  doc.setFontSize(11);
+  doc.setFontSize(fs.subheader - 1);
   doc.setFont("helvetica", "normal");
   const centreLine = data.centreName
     ? `CENTRE DE COMPOSITION ${data.centreName}`
     : "CENTRE DE COMPOSITION";
-  doc.text(centreLine, pageWidth / 2, 45, { align: "center" });
+  doc.text(centreLine, pageWidth / 2, yPos, { align: "center" });
+  yPos += 15;
 
   // Paragraphe de contexte avec pointillés
-  doc.setFontSize(10);
+  doc.setFontSize(fs.body);
   const contextText =
     `Ce ${dateFormatted}, le Groupe pédagogique CEP BLANC SECTORIEL organise son premier Examen blanc. ` +
-    `Celui-ci a démarré à …………… par l'épreuve de………………………….. . ` +
-    `Par la suite, nous avons poursuivi avec l'épreuve…………………………... ……….. ` +
-    `Aussi, à…………..…, nous avons eu une pause de…….…………………. ` +
-    `Pour enfin terminer l'Examen blanc par l'épreuve d'……….…………..qui s'acheva à……….… .`;
+    `Celui-ci a démarré à ……………… par l'épreuve de…………………………….. . ` +
+    `Par la suite, nous avons poursuivi avec l'épreuve……………………………... ……….. ` +
+    `Aussi, à……………...…, nous avons eu une pause de…….……………………. ` +
+    `Pour enfin terminer l'Examen blanc par l'épreuve d'………….…………..qui s'acheva à…………. .`;
 
-  doc.text(contextText, 14, 60, {
+  doc.text(contextText, 14, yPos, {
     maxWidth: pageWidth - 28,
     lineHeightFactor: 1.5,
   });
+  yPos += 35;
 
   // "Nous avons enregistré X candidats, dont :"
   doc.text(
     `Nous avons enregistré ${data.totalInscrits} candidats, dont :`,
     14,
-    95,
+    yPos,
   );
+  yPos += 10;
 
   // Liste à puces
-  const bulletY = 105;
+  const bulletY = yPos;
   const lineHeight = 7;
   const bulletLines = [
     `• Inscrits : ${data.totalInscrits} élèves.`,
@@ -1175,11 +1367,19 @@ function createProcesVerbalPdf(data: ProcesVerbalData): jsPDF {
     doc.text(line, 14, bulletY + i * lineHeight);
   });
 
-  // Signature en bas à droite
-  doc.setFontSize(10);
-  doc.text("La présidente du centre:", pageWidth - 14, pageHeight - 40, {
-    align: "right",
-  });
+  // Signatures personnalisées ou par défaut
+  if (config?.signatureLeft || config?.signatureCenter || config?.signatureRight) {
+    addPdfFooter(doc, config);
+  } else {
+    doc.setFontSize(fs.body);
+    doc.text("La présidente du centre:", pageWidth - 14, pageHeight - 40, {
+      align: "right",
+    });
+    // Pied de page basique si config
+    if (config?.footerText || config?.showPageNumbers || config?.showDate) {
+      addPdfFooter(doc, config);
+    }
+  }
 
   return doc;
 }
@@ -1274,8 +1474,9 @@ export async function exportResultsToPdf(
   students: ExportStudent[],
   subjects: Array<{ id: string; name: string; coefficient: number | null }>,
   options: ExportOptions = {},
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createResultsPdf(examInfo, students, subjects, options);
+  const doc = createResultsPdf(examInfo, students, subjects, options, config);
   const filename = `resultats_${examInfo.name.replace(/\s+/g, "_")}_${examInfo.year}.pdf`;
 
   if (isTauri()) {
@@ -1308,8 +1509,9 @@ export async function exportSchoolStatsToExcel(
 export async function exportSchoolStatsToPdf(
   examInfo: ExamInfo,
   schoolStats: SchoolStats[],
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createSchoolStatsPdf(examInfo, schoolStats);
+  const doc = createSchoolStatsPdf(examInfo, schoolStats, config);
   const filename = `stats_etablissements_${examInfo.year}.pdf`;
 
   if (isTauri()) {
@@ -1342,8 +1544,9 @@ export async function exportSubjectStatsToExcel(
 export async function exportSubjectStatsToPdf(
   examInfo: ExamInfo,
   subjectStats: SubjectStats[],
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createSubjectStatsPdf(examInfo, subjectStats);
+  const doc = createSubjectStatsPdf(examInfo, subjectStats, config);
   const filename = `stats_epreuves_${examInfo.year}.pdf`;
 
   if (isTauri()) {
@@ -1359,8 +1562,9 @@ export async function exportSubjectStatsToPdf(
  */
 export async function exportProcesVerbalToPdf(
   data: ProcesVerbalData,
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createProcesVerbalPdf(data);
+  const doc = createProcesVerbalPdf(data, config);
   const filename = `proces_verbal_${data.examName.replace(/\s+/g, "_")}_${data.examYear}.pdf`;
 
   if (isTauri()) {
@@ -1424,6 +1628,7 @@ export async function exportSchoolResultsToPdf(
   subjects: Array<{ id: string; name: string; coefficient: number | null }>,
   schoolName: string,
   options: ExportOptions = {},
+  config?: DocumentExportConfig,
 ): Promise<void> {
   // Filtrer les élèves de l'établissement
   const schoolStudents = students.filter((s) => s.schoolName === schoolName);
@@ -1443,6 +1648,7 @@ export async function exportSchoolResultsToPdf(
     subjects,
     schoolName,
     options,
+    config,
   );
 
   const sanitizedName = schoolName
@@ -1617,33 +1823,62 @@ function createAllRoomsWorkbook(
 /**
  * Crée un PDF pour une salle spécifique
  */
-function createRoomPdf(examInfo: ExamInfo, room: ExportRoom): jsPDF {
-  const doc = createPdfDocument("portrait");
+function createRoomPdf(examInfo: ExamInfo, room: ExportRoom, config?: DocumentExportConfig): jsPDF {
+  const doc = createPdfDocument("portrait", config);
   const pageWidth = doc.internal.pageSize.getWidth();
+  const fs = resolveFontSize(config);
+  let yPos = 15;
+
+  // En-tête institutionnel
+  if (config?.headerTitle) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.headerTitle.toUpperCase(), pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.headerSubtitle) {
+    doc.setFontSize(fs.body - 1);
+    doc.setFont("helvetica", "normal");
+    doc.text(config.headerSubtitle, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.institutionName) {
+    doc.setFontSize(fs.body);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.institutionName, pageWidth / 2, yPos, { align: "center" });
+    yPos += 5;
+  }
+  if (config?.headerTitle || config?.headerSubtitle || config?.institutionName) {
+    yPos += 3;
+  }
 
   // En-tête
-  doc.setFontSize(16);
+  doc.setFontSize(fs.header);
   doc.setFont("helvetica", "bold");
-  doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, 20, {
+  doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, yPos, {
     align: "center",
   });
+  yPos += 10;
 
-  doc.setFontSize(14);
+  doc.setFontSize(fs.subheader + 2);
   doc.text(
     `Salle ${room.roomNumber}${room.roomName ? ` - ${room.roomName}` : ""}`,
     pageWidth / 2,
-    30,
+    yPos,
     { align: "center" },
   );
+  yPos += 10;
 
-  doc.setFontSize(10);
+  doc.setFontSize(fs.body);
   doc.setFont("helvetica", "normal");
   doc.text(
     `Effectif: ${room.students.length} / ${room.capacity} places`,
     14,
-    42,
+    yPos,
   );
-  doc.text(`Date: ${formatDate()}`, 14, 48);
+  yPos += 6;
+  doc.text(`Date: ${formatDate()}`, 14, yPos);
+  yPos += 7;
 
   const columns = ["N° Candidat", "Nom", "Prénom", "Établissement"];
 
@@ -1655,11 +1890,11 @@ function createRoomPdf(examInfo: ExamInfo, room: ExportRoom): jsPDF {
   ]);
 
   autoTable(doc, {
-    startY: 55,
+    startY: yPos,
     head: [columns],
     body: rows,
     styles: {
-      fontSize: 10,
+      fontSize: fs.body,
       cellPadding: 3,
     },
     headStyles: {
@@ -1678,15 +1913,18 @@ function createRoomPdf(examInfo: ExamInfo, room: ExportRoom): jsPDF {
     },
   });
 
+  addPdfFooter(doc, config);
+
   return doc;
 }
 
 /**
  * Crée un PDF avec toutes les salles (une page par salle)
  */
-function createAllRoomsPdf(examInfo: ExamInfo, rooms: ExportRoom[]): jsPDF {
-  const doc = createPdfDocument("portrait");
+function createAllRoomsPdf(examInfo: ExamInfo, rooms: ExportRoom[], config?: DocumentExportConfig): jsPDF {
+  const doc = createPdfDocument("portrait", config);
   const pageWidth = doc.internal.pageSize.getWidth();
+  const fs = resolveFontSize(config);
   const filledRooms = rooms.filter((r) => r.students.length > 0);
 
   filledRooms.forEach((room, roomIndex) => {
@@ -1694,20 +1932,47 @@ function createAllRoomsPdf(examInfo: ExamInfo, rooms: ExportRoom[]): jsPDF {
       doc.addPage();
     }
 
+    let yPos = 15;
+
+    // En-tête institutionnel
+    if (config?.headerTitle) {
+      doc.setFontSize(fs.body);
+      doc.setFont("helvetica", "bold");
+      doc.text(config.headerTitle.toUpperCase(), pageWidth / 2, yPos, { align: "center" });
+      yPos += 5;
+    }
+    if (config?.headerSubtitle) {
+      doc.setFontSize(fs.body - 1);
+      doc.setFont("helvetica", "normal");
+      doc.text(config.headerSubtitle, pageWidth / 2, yPos, { align: "center" });
+      yPos += 5;
+    }
+    if (config?.institutionName) {
+      doc.setFontSize(fs.body);
+      doc.setFont("helvetica", "bold");
+      doc.text(config.institutionName, pageWidth / 2, yPos, { align: "center" });
+      yPos += 5;
+    }
+    if (config?.headerTitle || config?.headerSubtitle || config?.institutionName) {
+      yPos += 3;
+    }
+
     // En-tête
-    doc.setFontSize(16);
+    doc.setFontSize(fs.header);
     doc.setFont("helvetica", "bold");
-    doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, 20, {
+    doc.text(`${examInfo.name} - Session ${examInfo.year}`, pageWidth / 2, yPos, {
       align: "center",
     });
+    yPos += 10;
 
-    doc.setFontSize(10);
+    doc.setFontSize(fs.body);
     doc.text(
       `Salle ${room.roomNumber}${room.roomName ? ` - ${room.roomName}` : ""}`,
       pageWidth / 2,
-      30,
+      yPos,
       { align: "center" },
     );
+    yPos += 10;
 
     const columns = ["N° Candidat", "Nom", "Prénom", "Établissement"];
 
@@ -1719,11 +1984,11 @@ function createAllRoomsPdf(examInfo: ExamInfo, rooms: ExportRoom[]): jsPDF {
     ]);
 
     autoTable(doc, {
-      startY: 55,
+      startY: yPos,
       head: [columns],
       body: rows,
       styles: {
-        fontSize: 9,
+        fontSize: fs.table + 1,
         cellPadding: 2,
       },
       headStyles: {
@@ -1742,6 +2007,8 @@ function createAllRoomsPdf(examInfo: ExamInfo, rooms: ExportRoom[]): jsPDF {
       },
     });
   });
+
+  addPdfFooter(doc, config);
 
   return doc;
 }
@@ -1786,8 +2053,9 @@ export async function exportAllRoomsToExcel(
 export async function exportRoomToPdf(
   examInfo: ExamInfo,
   room: ExportRoom,
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createRoomPdf(examInfo, room);
+  const doc = createRoomPdf(examInfo, room, config);
   const filename = `salle_${room.roomNumber}_${examInfo.year}.pdf`;
 
   if (isTauri()) {
@@ -1803,8 +2071,9 @@ export async function exportRoomToPdf(
 export async function exportAllRoomsToPdf(
   examInfo: ExamInfo,
   rooms: ExportRoom[],
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createAllRoomsPdf(examInfo, rooms);
+  const doc = createAllRoomsPdf(examInfo, rooms, config);
   const filename = `repartition_salles_${examInfo.year}.pdf`;
 
   if (isTauri()) {
@@ -1820,8 +2089,9 @@ export async function exportAllRoomsToPdf(
 export async function printRoom(
   examInfo: ExamInfo,
   room: ExportRoom,
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createRoomPdf(examInfo, room);
+  const doc = createRoomPdf(examInfo, room, config);
 
   // Ouvrir dans un nouvel onglet pour impression
   const pdfBlob = doc.output("blob");
@@ -1841,8 +2111,9 @@ export async function printRoom(
 export async function printAllRooms(
   examInfo: ExamInfo,
   rooms: ExportRoom[],
+  config?: DocumentExportConfig,
 ): Promise<void> {
-  const doc = createAllRoomsPdf(examInfo, rooms);
+  const doc = createAllRoomsPdf(examInfo, rooms, config);
 
   // Ouvrir dans un nouvel onglet pour impression
   const pdfBlob = doc.output("blob");
