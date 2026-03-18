@@ -50,6 +50,7 @@ import {
   PenLine,
   Search,
   Send,
+  UserMinus,
   UserSearch,
   XCircle,
 } from "lucide-react";
@@ -79,7 +80,7 @@ interface SessionEntry {
 function QuickEntryTab() {
   const { students } = useStudentsStore();
   const { subjects } = useSubjectsStore();
-  const { getScore, upsertScore, getScoresBySubject } = useScoresStore();
+  const { getScore, upsertScore, getScoresBySubject, markAbsentForSubject, isAbsentForSubject } = useScoresStore();
 
   // États du formulaire
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
@@ -136,6 +137,12 @@ function QuickEntryTab() {
     if (!selectedStudentId || !selectedSubject) return null;
     return getScore(selectedStudentId, selectedSubject.id);
   }, [selectedStudentId, selectedSubject, getScore, sessionCounter]);
+
+  // Absent pour cette épreuve ?
+  const isAbsentForThisSubject = useMemo(() => {
+    if (!selectedStudentId || !selectedSubject) return false;
+    return isAbsentForSubject(selectedStudentId, selectedSubject.id);
+  }, [selectedStudentId, selectedSubject, isAbsentForSubject, sessionCounter]);
 
   // Fermer les suggestions quand on clique en dehors
   useEffect(() => {
@@ -504,8 +511,55 @@ function QuickEntryTab() {
               </div>
               {selectedStudent?.isAbsent && (
                 <p className="text-sm text-destructive">
-                  Ce candidat est absent. Saisie de note impossible.
+                  Ce candidat est absent (global). Saisie de note impossible.
                 </p>
+              )}
+              {isAbsentForThisSubject && !selectedStudent?.isAbsent && (
+                <p className="text-sm text-orange-600">
+                  Ce candidat est marqué absent pour cette épreuve.
+                </p>
+              )}
+
+              {/* Bouton marquer absent pour cette épreuve */}
+              {selectedStudentId && selectedSubject && !selectedStudent?.isAbsent && (
+                <Button
+                  variant={isAbsentForThisSubject ? 'default' : 'outline'}
+                  size="sm"
+                  className={isAbsentForThisSubject ? 'gap-2 bg-orange-600 hover:bg-orange-700' : 'gap-2 text-orange-600 border-orange-300 hover:bg-orange-50'}
+                  onClick={() => {
+                    if (isAbsentForThisSubject) {
+                      // Unmark absent
+                      const { unmarkAbsentForSubject } = useScoresStore.getState();
+                      unmarkAbsentForSubject(selectedStudentId, selectedSubject.id);
+                      setSessionCounter((c) => c + 1);
+                      toast.success('Absence retirée pour cette épreuve');
+                    } else {
+                      // Mark absent
+                      const student = students.find((s) => s.id === selectedStudentId);
+                      markAbsentForSubject(selectedStudentId, selectedSubject.id);
+                      setSessionCounter((c) => c + 1);
+                      const entry: SessionEntry = {
+                        id: Date.now(),
+                        studentName: `${student?.lastName} ${student?.firstName}`,
+                        candidateNumber: student?.candidateNumber || '',
+                        subjectName: selectedSubject.name,
+                        value: 0,
+                        isUpdate: false,
+                        timestamp: new Date(),
+                      };
+                      setSessionEntries((prev) => [{ ...entry, studentName: entry.studentName + ' (Absent)' }, ...prev]);
+                      toast.success('Candidat marqué absent pour cette épreuve');
+                      // Reset for next
+                      setSelectedStudentId(null);
+                      setMatriculeQuery('');
+                      setNoteValue('');
+                      setTimeout(() => matriculeInputRef.current?.focus(), 50);
+                    }
+                  }}
+                >
+                  <UserMinus className="h-3.5 w-3.5" />
+                  {isAbsentForThisSubject ? 'Retirer absence épreuve' : 'Absent pour cette épreuve'}
+                </Button>
               )}
             </div>
 
@@ -588,7 +642,7 @@ function RecapTab() {
   const { subjects } = useSubjectsStore();
   const { schools } = useSchoolsStore();
   const { passingGrade, maxGrade } = useExamStore();
-  const { getScore, calculateAverage } = useScoresStore();
+  const { getScore, calculateAverage, isAbsentForSubject } = useScoresStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSchool, setFilterSchool] = useState<string>("all");
@@ -748,15 +802,20 @@ function RecapTab() {
                   </TableCell>
                   {subjects.map((subject) => {
                     const score = getScore(student.id, subject.id);
+                    const absentForSubject = isAbsentForSubject(student.id, subject.id);
                     return (
                       <TableCell
                         key={subject.id}
-                        className={`text-center ${isAbsent ? "bg-muted/20" : ""}`}
+                        className={`text-center ${isAbsent ? "bg-muted/20" : absentForSubject ? "bg-orange-50 dark:bg-orange-950/20" : ""}`}
                       >
                         {isAbsent ? (
                           <span className="text-muted-foreground text-sm">
                             —
                           </span>
+                        ) : absentForSubject ? (
+                          <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                            Abs.
+                          </Badge>
                         ) : (
                           <span
                             className={

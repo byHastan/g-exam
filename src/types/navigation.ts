@@ -15,6 +15,7 @@ export type PageId =
   | 'statistics'
   | 'rooms'
   | 'exports'
+  | 'settings'
   | 'admin';
 
 // Structure d'un item de menu
@@ -87,6 +88,12 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: 'Download',
     description: 'Export PDF et Excel',
   },
+  {
+    id: 'settings',
+    label: 'Paramètres',
+    icon: 'SlidersHorizontal',
+    description: 'Mentions, documents et configuration',
+  },
 ];
 
 // Titres des pages pour l'affichage
@@ -101,5 +108,6 @@ export const PAGE_TITLES: Record<PageId, string> = {
   statistics: 'Statistiques',
   rooms: 'Répartition en salles',
   exports: 'Exports',
+  settings: 'Paramètres',
   admin: 'Administration',
 };

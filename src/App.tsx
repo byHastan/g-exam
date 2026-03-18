@@ -27,6 +27,7 @@ import { RankingsPage } from '@/app/rankings';
 import { StatisticsPage } from '@/app/statistics';
 import { RoomsPage } from '@/app/rooms';
 import { ExportsPage } from '@/app/exports';
+import { SettingsPage } from '@/app/settings';
 import { AdminPage } from '@/app/admin';
 
 // Map des composants de page par ID
@@ -41,6 +42,7 @@ const PAGES: Record<PageId, React.ComponentType> = {
   statistics: StatisticsPage,
   rooms: RoomsPage,
   exports: ExportsPage,
+  settings: SettingsPage,
   admin: AdminPage,
 };
 

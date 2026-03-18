@@ -32,6 +32,7 @@ import {
   DoorOpen,
   Download,
   Shield,
+  SlidersHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
@@ -49,6 +50,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   BarChart3,
   DoorOpen,
   Download,
+  SlidersHorizontal,
 };
 
 const SIDEBAR_STORAGE_KEY = 'g-exam-sidebar-collapsed';

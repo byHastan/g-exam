@@ -8,9 +8,10 @@
  * - Bouton de verrouillage de l'application
  */
 
+import { useMemo } from 'react';
 import { useNavigationStore } from '@/stores/navigationStore';
 import { useExamStore } from '@/stores/examStore';
-import { useSecurityStore } from '@/stores';
+import { useSecurityStore, useStudentsStore, useSubjectsStore, useScoresStore } from '@/stores';
 import { PAGE_TITLES } from '@/types/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,10 +28,23 @@ export function Header() {
   const { currentPage } = useNavigationStore();
   const { examName, examYear, status } = useExamStore();
   const { lockApp } = useSecurityStore();
+  const { students } = useStudentsStore();
+  const { subjects } = useSubjectsStore();
+  const { scores } = useScoresStore();
   const { isDark, toggle: toggleDarkMode } = useDarkMode();
 
   const pageTitle = PAGE_TITLES[currentPage];
   const hasExam = examName && examYear;
+
+  // Progress: scores entered vs total expected (non-absent students × subjects)
+  const progress = useMemo(() => {
+    const presentStudents = students.filter((s) => !s.isAbsent);
+    const totalExpected = presentStudents.length * subjects.length;
+    // Count actual scores (non-absent entries)
+    const totalEntered = scores.filter((s) => !s.isAbsent).length;
+    const percent = totalExpected > 0 ? Math.round((totalEntered / totalExpected) * 100) : 0;
+    return { totalEntered, totalExpected, percent };
+  }, [students, subjects, scores]);
 
   return (
     <header className="h-16 border-b bg-card px-6 flex items-center justify-between shrink-0">
@@ -41,6 +55,35 @@ export function Header() {
 
       {/* Informations sur l'examen actif + Bouton verrouillage */}
       <div className="flex items-center gap-4">
+        {/* Barre de progression globale de saisie */}
+        {hasExam && progress.totalExpected > 0 && (
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 cursor-default">
+                  <div className="w-28 h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        progress.percent === 100
+                          ? 'bg-green-500'
+                          : progress.percent >= 50
+                            ? 'bg-primary'
+                            : 'bg-amber-500'
+                      }`}
+                      style={{ width: `${progress.percent}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                    {progress.percent}%
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Saisie des notes : {progress.totalEntered}/{progress.totalExpected} notes</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {hasExam ? (
           <>
             {/* Nom et année de l'examen */}

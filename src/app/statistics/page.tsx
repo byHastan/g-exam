@@ -73,6 +73,11 @@ import {
   Legend,
   Pie,
   PieChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -216,6 +221,52 @@ export function StatisticsPage() {
     passingGrade,
     schools,
   ]);
+
+  // Radar chart data: average per subject per school (top 5 schools by candidates)
+  const radarData = useMemo(() => {
+    if (subjects.length === 0 || schoolStats.length === 0) return [];
+
+    // Pick top schools (by number of candidates, max 5 for readability)
+    const topSchools = [...schoolStats]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    // For each subject, compute average per school
+    return subjects.map((subject) => {
+      const row: Record<string, string | number> = { subject: subject.name };
+      topSchools.forEach((school) => {
+        const schoolStudents = students.filter(
+          (s) => s.schoolId === school.schoolId && !s.isAbsent,
+        );
+        const subjectScores = schoolStudents
+          .map((st) => {
+            const sc = scores.find(
+              (s) => s.studentId === st.id && s.subjectId === subject.id && !s.isAbsent,
+            );
+            return sc ? sc.value : null;
+          })
+          .filter((v): v is number => v !== null);
+
+        const avg =
+          subjectScores.length > 0
+            ? subjectScores.reduce((a, b) => a + b, 0) / subjectScores.length
+            : 0;
+        row[school.schoolName] = Math.round(avg * 100) / 100;
+      });
+      return row;
+    });
+  }, [subjects, schoolStats, students, scores]);
+
+  const radarSchoolNames = useMemo(() => {
+    return [...schoolStats]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+      .map((s) => s.schoolName);
+  }, [schoolStats]);
+
+  const RADAR_COLORS = [
+    '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
+  ];
 
   const hasResults = globalStats.totalCandidates > 0;
 
@@ -786,7 +837,41 @@ export function StatisticsPage() {
           </TabsContent>
 
           {/* Statistiques par établissement */}
-          <TabsContent value="schools" className="mt-4">
+          <TabsContent value="schools" className="mt-4 space-y-6">
+            {/* Radar chart : comparaison inter-établissements par matière */}
+            {radarData.length > 0 && radarSchoolNames.length >= 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Comparaison par matière (top {radarSchoolNames.length} établissements)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart data={radarData}>
+                        <PolarGrid />
+                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
+                        <PolarRadiusAxis angle={90} domain={[0, 'auto']} tick={{ fontSize: 10 }} />
+                        {radarSchoolNames.map((name, i) => (
+                          <Radar
+                            key={name}
+                            name={name}
+                            dataKey={name}
+                            stroke={RADAR_COLORS[i % RADAR_COLORS.length]}
+                            fill={RADAR_COLORS[i % RADAR_COLORS.length]}
+                            fillOpacity={0.1}
+                          />
+                        ))}
+                        <Legend />
+                        <Tooltip />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="rounded-md border">
               <Table>
                 <TableHeader>

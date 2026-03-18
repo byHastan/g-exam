@@ -17,6 +17,7 @@ export interface Score {
   studentId: number;
   subjectId: number;
   value: number;
+  isAbsent: boolean; // Absent pour cette épreuve spécifique
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,8 @@ interface ScoresState {
 
   // Actions CRUD
   upsertScore: (studentId: number, subjectId: number, value: number) => Score;
+  markAbsentForSubject: (studentId: number, subjectId: number) => Score;
+  unmarkAbsentForSubject: (studentId: number, subjectId: number) => boolean;
   deleteScore: (studentId: number, subjectId: number) => boolean;
   deleteScoresByStudent: (studentId: number) => number;
 
@@ -42,6 +45,7 @@ interface ScoresState {
   getScore: (studentId: number, subjectId: number) => Score | undefined;
   getScoresByStudent: (studentId: number) => Score[];
   getScoresBySubject: (subjectId: number) => Score[];
+  isAbsentForSubject: (studentId: number, subjectId: number) => boolean;
 
   // Calculs
   calculateAverage: (
@@ -105,6 +109,7 @@ export const useScoresStore = create<ScoresState>()(
             studentId,
             subjectId,
             value,
+            isAbsent: false,
             createdAt: now,
             updatedAt: now,
           };
@@ -116,6 +121,62 @@ export const useScoresStore = create<ScoresState>()(
 
           return newScore;
         }
+      },
+
+      markAbsentForSubject: (studentId: number, subjectId: number) => {
+        const { scores } = get();
+        const now = new Date();
+        const existingIndex = scores.findIndex(
+          (s) => s.studentId === studentId && s.subjectId === subjectId
+        );
+
+        if (existingIndex >= 0) {
+          const updatedScore = {
+            ...scores[existingIndex],
+            value: 0,
+            isAbsent: true,
+            updatedAt: now,
+          };
+          set((state) => ({
+            scores: state.scores.map((s, i) =>
+              i === existingIndex ? updatedScore : s
+            ),
+            error: null,
+          }));
+          return updatedScore;
+        } else {
+          const newScore: Score = {
+            id: nextId++,
+            studentId,
+            subjectId,
+            value: 0,
+            isAbsent: true,
+            createdAt: now,
+            updatedAt: now,
+          };
+          set((state) => ({
+            scores: [...state.scores, newScore],
+            error: null,
+          }));
+          return newScore;
+        }
+      },
+
+      unmarkAbsentForSubject: (studentId: number, subjectId: number) => {
+        const { scores } = get();
+        const existing = scores.find(
+          (s) => s.studentId === studentId && s.subjectId === subjectId && s.isAbsent
+        );
+        if (!existing) return false;
+
+        // Remove the absence record so the score slot is empty again
+        set((state) => ({
+          scores: state.scores.filter(
+            (s) => !(s.studentId === studentId && s.subjectId === subjectId)
+          ),
+          error: null,
+        }));
+        return true;
       },
 
       deleteScore: (studentId: number, subjectId: number) => {
@@ -164,13 +225,23 @@ export const useScoresStore = create<ScoresState>()(
         return get().scores.filter((s) => s.subjectId === subjectId);
       },
 
+      isAbsentForSubject: (studentId: number, subjectId: number) => {
+        const score = get().scores.find(
+          (s) => s.studentId === studentId && s.subjectId === subjectId
+        );
+        return score?.isAbsent ?? false;
+      },
+
       calculateAverage: (
         studentId: number,
         subjects: Array<{ id: number; coefficient: number | null; maxScore?: number }>,
         options?: AverageOptions
       ) => {
         const { scores } = get();
-        const studentScores = scores.filter((s) => s.studentId === studentId);
+        // Exclude absent-per-subject scores from average calculation
+        const studentScores = scores.filter(
+          (s) => s.studentId === studentId && !s.isAbsent
+        );
 
         if (studentScores.length === 0) {
           return null;
@@ -224,6 +295,7 @@ export const useScoresStore = create<ScoresState>()(
           nextId = maxId + 1;
           state.scores = state.scores.map((s) => ({
             ...s,
+            isAbsent: s.isAbsent ?? false, // Rétrocompatibilité
             createdAt: new Date(s.createdAt),
             updatedAt: new Date(s.updatedAt),
           }));

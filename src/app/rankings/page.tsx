@@ -27,6 +27,7 @@ import {
   useScoresStore,
   useSchoolsStore,
   useExamStore,
+  useSettingsStore,
 } from '@/stores';
 import { rankStudents } from '@/core/rankings/studentRanking';
 import { rankSchools } from '@/core/rankings/schoolRanking';
@@ -37,6 +38,7 @@ export function RankingsPage() {
   const { schools } = useSchoolsStore();
   const { passingGrade, maxGrade } = useExamStore();
   const { calculateAverage } = useScoresStore();
+  const { getMention } = useSettingsStore();
 
   // Préparer les sujets pour le calcul (avec maxScore pour la normalisation)
   const subjectsForCalc = useMemo(
@@ -193,6 +195,17 @@ export function RankingsPage() {
                             <p className="text-3xl font-bold text-yellow-600">
                               {s.average.toFixed(2)}
                             </p>
+                            {(() => {
+                              const mention = getMention(s.average);
+                              return mention ? (
+                                <Badge
+                                  className="mt-1"
+                                  style={{ backgroundColor: mention.color, color: '#fff' }}
+                                >
+                                  {mention.label}
+                                </Badge>
+                              ) : null;
+                            })()}
                           </div>
                         );
                       })}
@@ -233,6 +246,7 @@ export function RankingsPage() {
                       <TableHead>Candidat</TableHead>
                       <TableHead>Établissement</TableHead>
                       <TableHead className="text-center">Moyenne</TableHead>
+                      <TableHead className="text-center">Mention</TableHead>
                       <TableHead className="text-center">Statut</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -275,6 +289,20 @@ export function RankingsPage() {
                             >
                               {ranked.average.toFixed(2)}
                             </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {(() => {
+                              const mention = getMention(ranked.average);
+                              return mention ? (
+                                <Badge
+                                  style={{ backgroundColor: mention.color, color: '#fff' }}
+                                >
+                                  {mention.label}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">—</span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-center">
                             {admitted ? (

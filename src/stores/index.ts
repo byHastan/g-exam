@@ -20,3 +20,6 @@ export { useScoresStore } from './scoresStore';
 export type { Score, StudentWithAverage } from './scoresStore';
 
 export { useSecurityStore } from './securityStore';
+
+export { useSettingsStore } from './settingsStore';
+export type { MentionThreshold, DocumentConfig, GeneralConfig } from './settingsStore';
